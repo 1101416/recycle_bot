@@ -10,7 +10,7 @@ from linebot.models import (
 from linebot.exceptions import LineBotApiError
 import logging
 from config import Config
-from image_classifier import ImageClassifier
+from image_classifier import ImageClassifier # 已修改
 from recycle_db import RecycleDatabase
 # from news_scraper import NewsScraper  # 暫時停用
 
@@ -22,6 +22,65 @@ class LineMessageHandler:
         self.image_classifier = ImageClassifier()
         self.recycle_db = RecycleDatabase()
         # self.news_scraper = NewsScraper()  # 暫時停用
+    
+    # ... (其他 handle_..._message 函式維持不變) ...
+
+    def handle_image_message(self, event):
+        """處理圖片訊息 (已升級)"""
+        user_id = event.source.user_id
+        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
+        
+        try:
+            message_content = self.line_bot_api.get_message_content(event.message.id)
+            image_data = b''
+            for chunk in message_content.iter_content():
+                image_data += chunk
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                temp_file.write(image_data)
+                temp_file_path = temp_file.name
+            
+            try:
+                # 進行垃圾分類 (現在會回傳 category 和 item_name)
+                classification_result = self.image_classifier.classify_image(temp_file_path)
+                
+                if classification_result:
+                    # 使用新的函式取得最精確的回收資訊
+                    waste_info = self.recycle_db.get_specific_waste_info(
+                        classification_result['category'],
+                        classification_result['item_name'],
+                        user_lang
+                    )
+                    
+                    # 如果找到了精確資訊，記錄到資料庫
+                    if waste_info:
+                        self.recycle_db.record_classification(
+                            user_id, 
+                            waste_info['category'], # 使用資料庫修正後的 category
+                            classification_result['confidence']
+                        )
+                        
+                        # 回覆分類結果
+                        self._send_classification_result(
+                            event.reply_token, 
+                            classification_result, 
+                            waste_info, 
+                            user_lang
+                        )
+                    else:
+                        # 如果連通用類別都找不到資訊，才回傳錯誤
+                        self._send_classification_error(event.reply_token, user_lang)
+                else:
+                    self._send_classification_error(event.reply_token, user_lang)
+                    
+            finally:
+                os.unlink(temp_file_path)
+                
+        except Exception as e:
+            logger.error(f"Error processing image: {str(e)}")
+            self._send_classification_error(event.reply_token, user_lang)
+
+    # ... (所有 _send_... 函式維持不變) ...
     
     def handle_text_message(self, event):
         """處理文字訊息"""
@@ -49,60 +108,7 @@ class LineMessageHandler:
         else:
             # 預設回覆
             self._send_default_reply(event.reply_token, user_lang)
-    
-    def handle_image_message(self, event):
-        """處理圖片訊息"""
-        user_id = event.source.user_id
-        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
-        
-        try:
-            # 下載圖片
-            message_content = self.line_bot_api.get_message_content(event.message.id)
-            image_data = b''
-            for chunk in message_content.iter_content():
-                image_data += chunk
-            
-            # 儲存臨時圖片
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                temp_file.write(image_data)
-                temp_file_path = temp_file.name
-            
-            try:
-                # 進行垃圾分類
-                classification_result = self.image_classifier.classify_image(temp_file_path)
-                
-                if classification_result:
-                    # 取得詳細的回收資訊
-                    waste_info = self.recycle_db.get_waste_info(
-                        classification_result['category'], 
-                        user_lang
-                    )
-                    
-                    # 記錄使用者的分類行為
-                    self.recycle_db.record_classification(
-                        user_id, 
-                        classification_result['category'],
-                        classification_result['confidence']
-                    )
-                    
-                    # 回覆分類結果
-                    self._send_classification_result(
-                        event.reply_token, 
-                        classification_result, 
-                        waste_info, 
-                        user_lang
-                    )
-                else:
-                    self._send_classification_error(event.reply_token, user_lang)
-                    
-            finally:
-                # 清理臨時檔案
-                os.unlink(temp_file_path)
-                
-        except Exception as e:
-            logger.error(f"Error processing image: {str(e)}")
-            self._send_classification_error(event.reply_token, user_lang)
-    
+
     def handle_location_message(self, event):
         """處理位置訊息"""
         user_id = event.source.user_id
@@ -291,11 +297,12 @@ Feel free to ask if you have any questions!""",
     
     def _search_waste_info(self, reply_token, search_term, user_lang):
         """搜尋特定垃圾資訊"""
-        waste_info = self.recycle_db.search_waste_by_name(search_term, user_lang)
+        # 在新架構下，這個函式可能也需要更新，但暫時維持原樣
+        waste_info = self.recycle_db.get_specific_waste_info('other', search_term, user_lang)
         
         if waste_info:
             info_text = f"🔍 搜尋結果：{search_term}\n\n"
-            info_text += f"📂 分類：{waste_info['category']}\n"
+            info_text += f"📂 分類：{waste_info['category_name']}\n"
             info_text += f"♻️ 處理方式：\n{waste_info['disposal_method']}\n"
             if waste_info['tips']:
                 info_text += f"\n💡 小提醒：{waste_info['tips']}"
@@ -304,22 +311,19 @@ Feel free to ask if you have any questions!""",
         else:
             no_result_text = f"找不到「{search_term}」的相關資訊，請嘗試其他關鍵字或拍照上傳。"
             self.line_bot_api.reply_message(reply_token, TextMessage(text=no_result_text))
-    
+
     def _send_classification_result(self, reply_token, classification_result, waste_info, user_lang):
         """發送分類結果"""
         confidence = classification_result['confidence']
-        category = classification_result['category']
         
         result_text = f"🔍 垃圾分類結果\n\n"
+        result_text += f"辨識物品：{classification_result.get('item_name', '未知')}\n"
         result_text += f"📂 類別：{waste_info['category_name']}\n"
         result_text += f"🎯 信心度：{confidence:.1f}%\n\n"
         result_text += f"♻️ 處理方式：\n{waste_info['disposal_method']}\n"
         
         if waste_info['tips']:
             result_text += f"\n💡 小提醒：{waste_info['tips']}"
-        
-        if confidence < 0.7:
-            result_text += f"\n\n⚠️ 注意：信心度較低，建議您確認分類是否正確。"
         
         self.line_bot_api.reply_message(reply_token, TextMessage(text=result_text))
     
@@ -348,4 +352,3 @@ Feel free to ask if you have any questions!""",
         """發送預設回覆"""
         default_text = "請上傳垃圾照片進行分類，或輸入 /help 查看完整功能！"
         self.line_bot_api.reply_message(reply_token, TextMessage(text=default_text))
-
