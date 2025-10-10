@@ -30,10 +30,10 @@ class ImageClassifier:
                 return
             
             genai.configure(api_key=api_key)
-            # V V V 修正處 V V V
-            self.model = genai.GenerativeModel('gemini-pro-vision')
-            # ^ ^ ^ 修正處 ^ ^ ^
-            logger.info("Gemini API configured successfully with 'gemini-pro-vision' model.")
+            # V V V 最終修正處 V V V
+            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            # ^ ^ ^ 最終修正處 ^ ^ ^
+            logger.info("Gemini API configured successfully with 'gemini-1.5-flash-latest' model.")
         except Exception as e:
             logger.error(f"Error initializing Gemini API: {e}")
 
@@ -53,10 +53,6 @@ class ImageClassifier:
             
             # 清理並驗證 AI 的回應
             category = response.text.strip().lower()
-            
-            # 針對鋁箔包類型的額外判斷
-            if '鋁箔包' in category or 'paper pack' in category:
-                category = 'paper' # 根據台灣回收分類，鋁箔包屬於紙容器
 
             if category in Config.WASTE_CATEGORIES:
                 logger.info(f"Gemini API classification result: '{category}'")
