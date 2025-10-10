@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 from PIL import Image
 from config import Config
 import google.generativeai as genai
@@ -8,20 +9,20 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # --- AI 模型設定 ---
-# 從設定檔讀取支援的垃圾類別
 WASTE_CATEGORIES_TEXT = ", ".join(Config.WASTE_CATEGORIES.keys())
 
-# 給 AI 的指令 (Prompt)
+# 給 AI 的新版專家指令 (Prompt)
 SYSTEM_PROMPT = f"""
-You are an expert in waste classification.
-Your task is to identify the main object in the user's image and classify it into one of the following categories: {WASTE_CATEGORIES_TEXT}.
-You must respond with only the single category name in lowercase English. For example: 'plastic'.
-If the image is unclear or doesn't contain a classifiable item, respond with 'other'.
+You are a waste classification expert for Taiwan.
+Your task is to identify the main object in the user's image.
+First, classify it into one of the following general categories: {WASTE_CATEGORIES_TEXT}.
+Second, provide the specific name of the item in Traditional Chinese (e.g., '衛生紙', '鋁箔包', '寶特瓶').
+You MUST respond in the following format, and nothing else:
+category: [lowercase_english_category], item: [traditional_chinese_item_name]
 """
 
 class ImageClassifier:
     def __init__(self):
-        """初始化 Gemini API"""
         self.model = None
         try:
             api_key = os.getenv('GOOGLE_API_KEY')
@@ -38,35 +39,34 @@ class ImageClassifier:
             logger.error(f"Error initializing Gemini API: {e}")
 
     def classify_image(self, image_path: str) -> Optional[dict]:
-        """使用 Gemini API 進行垃圾分類"""
         if not self.model:
             logger.warning("Gemini model not loaded, classification skipped.")
             return None
 
         logger.info(f"Classifying image: {image_path}")
         try:
-            # 讀取圖片
             img = Image.open(image_path)
-            
-            # 呼叫 Gemini Vision API
             response = self.model.generate_content([SYSTEM_PROMPT, img])
             
-            # 清理並驗證 AI 的回應
-            category = response.text.strip().lower()
+            # 使用正規表達式解析 AI 的回應
+            match = re.search(r"category:\s*(\w+),\s*item:\s*(.+)", response.text.strip())
+            
+            if match:
+                category = match.group(1).lower()
+                item_name = match.group(2).strip()
+                
+                if category in Config.WASTE_CATEGORIES:
+                    logger.info(f"Gemini API result: category='{category}', item='{item_name}'")
+                    return {
+                        'category': category,
+                        'item_name': item_name
+                    }
 
-            if category in Config.WASTE_CATEGORIES:
-                logger.info(f"Gemini API classification result: '{category}'")
-                # API 沒有傳統的信心度，我們給一個固定值表示成功
-                return {
-                    'category': category,
-                    'confidence': 0.9  
-                }
-            else:
-                logger.warning(f"Gemini API returned an invalid category: '{category}'. Defaulting to 'other'.")
-                return {
-                    'category': 'other',
-                    'confidence': 0.5
-                }
+            logger.warning(f"Gemini API returned an unparsable response: '{response.text}'. Defaulting to 'other'.")
+            return {
+                'category': 'other',
+                'item_name': '未知物品'
+            }
 
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
