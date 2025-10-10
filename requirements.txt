@@ -1,7 +1,18 @@
+# 核心框架
 Flask==2.3.3
+gunicorn==21.2.0
+
+# LINE Bot
 line-bot-sdk==3.5.0
+
+# AI 模型 (TensorFlow)
+tensorflow-cpu==2.16.1
+numpy==1.26.4
 Pillow==10.4.0
+
+# 其他工具
 requests==2.31.0
 python-dotenv==1.0.0
-gunicorn==21.2.0
-tensorflow-cpu==2.13.0
+
+# 固定底層相依套件以解決衝突
+typing-extensions==4.9.0
