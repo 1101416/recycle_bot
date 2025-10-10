@@ -10,7 +10,7 @@ from linebot.models import (
 from linebot.exceptions import LineBotApiError
 import logging
 from config import Config
-from image_classifier_simple import ImageClassifier
+from image_classifier import ImageClassifier
 from recycle_db import RecycleDatabase
 # from news_scraper import NewsScraper  # 暫時停用
 
@@ -348,3 +348,4 @@ Feel free to ask if you have any questions!""",
         """發送預設回覆"""
         default_text = "請上傳垃圾照片進行分類，或輸入 /help 查看完整功能！"
         self.line_bot_api.reply_message(reply_token, TextMessage(text=default_text))
+
