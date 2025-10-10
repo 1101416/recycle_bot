@@ -5,14 +5,12 @@ gunicorn==21.2.0
 # LINE Bot
 line-bot-sdk==3.5.0
 
-# AI 模型 (TensorFlow Lite) - 修改處
-tflite-runtime==2.14.0  # 取代 tensorflow-cpu
-numpy==1.26.4
+# Google AI API
+google-generativeai==0.7.2
+
+# 圖片與網路請求
 Pillow==10.4.0
+requests==2.31.0
 
 # 其他工具
-requests==2.31.0
 python-dotenv==1.0.0
-
-# 固定底層相依套件以解決衝突
-typing-extensions==4.9.0
