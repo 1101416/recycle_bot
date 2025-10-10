@@ -3,6 +3,7 @@ import logging
 from PIL import Image
 from config import Config
 import google.generativeai as genai
+from typing import Optional # <== 1. 新增這一行
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,8 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error initializing Gemini API: {e}")
 
-    def classify_image(self, image_path: str) -> dict | None:
+    # V 2. 修改下面這一行的語法 V
+    def classify_image(self, image_path: str) -> Optional[dict]:
         """使用 Gemini API 進行垃圾分類"""
         if not self.model:
             logger.warning("Gemini model not loaded, classification skipped.")
