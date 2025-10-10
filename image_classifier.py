@@ -30,10 +30,10 @@ class ImageClassifier:
                 return
             
             genai.configure(api_key=api_key)
-            # V V V 最終修正處 V V V
-            self.model = genai.GenerativeModel('gemini-2.5-flash')
-            # ^ ^ ^ 最終修正處 ^ ^ ^
-            logger.info("Gemini API configured successfully with 'gemini-1.5-flash-latest' model.")
+            # V V V 已更新為您指定的模型 V V V
+            self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
+            # ^ ^ ^ 已更新為您指定的模型 ^ ^ ^
+            logger.info("Gemini API configured successfully with 'gemini-2.5-flash-lite' model.")
         except Exception as e:
             logger.error(f"Error initializing Gemini API: {e}")
 
@@ -71,4 +71,3 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
             return None
-
