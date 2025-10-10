@@ -59,13 +59,15 @@ class ImageClassifier:
                     logger.info(f"Gemini API result: category='{category}', item='{item_name}'")
                     return {
                         'category': category,
-                        'item_name': item_name
+                        'item_name': item_name,
+                        'confidence': 0.9
                     }
 
             logger.warning(f"Gemini API returned an unparsable response: '{response.text}'. Defaulting to 'other'.")
             return {
                 'category': 'other',
-                'item_name': '未知物品'
+                'item_name': '未知物品',
+                'confidence': 0.5
             }
 
         except Exception as e:
