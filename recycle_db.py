@@ -10,14 +10,12 @@ logger = logging.getLogger(__name__)
 class RecycleDatabase:
     def __init__(self, db_path='database.db'):
         self.db_path = db_path
-        # 移除舊的初始化，讓主程式決定何時初始化
     
     def get_waste_info(self, category: str, language: str = 'zh-TW') -> Dict:
-        """(舊方法) 取得通用的垃圾分類資訊"""
+        """取得通用的垃圾分類資訊"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                # 優先查詢 'zh-TW'
                 cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = ? LIMIT 1", (category, 'zh-TW'))
                 result = cursor.fetchone()
                 
@@ -30,31 +28,43 @@ class RecycleDatabase:
             return None
 
     def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Dict:
-        """(新方法) 依據品項名稱取得最精確的資訊，若無則回退到通用類別"""
+        """
+        (智慧查詢) 依據品項名稱取得最精確的資訊，若無則回退到通用類別
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                # 1. 嘗試用 item_name 進行模糊查詢，尋找最精確的規則
-                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE ? LIKE '%' || name || '%' AND language = ? LIMIT 1", (item_name, 'zh-TW'))
-                result = cursor.fetchone()
+                # 1. 取得所有專家規則
+                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE language = ?", ('zh-TW',))
+                all_rules = cursor.fetchall()
 
-                # 2. 如果找不到精確規則，則使用通用類別查詢 (回退)
-                if not result:
-                    return self.get_waste_info(category, language)
+                # 2. 遍歷規則，尋找關鍵字是否存在於 AI 回傳的品項名稱中
+                best_match = None
+                for rule in all_rules:
+                    # rule[1] 是資料庫中的品項名稱，例如 "衛生紙" 或 "鋁箔包"
+                    db_keyword = rule[1]
+                    if db_keyword in item_name:
+                        best_match = rule
+                        break # 找到第一個符合的就採用
 
-                # 如果找到了精確規則 (例如'衛生紙'被歸類為'other')，使用資料庫中定義的正確分類
-                correct_category = result[0]
-                category_name_zh = Config.WASTE_CATEGORIES.get(correct_category, correct_category)
+                # 3. 如果找到精確的專家規則，就使用它
+                if best_match:
+                    logger.info(f"Expert rule found for '{item_name}', using rule for '{best_match[1]}'.")
+                    correct_category = best_match[0]
+                    category_name_zh = Config.WASTE_CATEGORIES.get(correct_category, correct_category)
+                    
+                    return {
+                        'category': correct_category,
+                        'category_name': category_name_zh,
+                        'disposal_method': best_match[2],
+                        'tips': best_match[3]
+                    }
                 
-                return {
-                    'category': correct_category,
-                    'category_name': category_name_zh,
-                    'disposal_method': result[2],
-                    'tips': result[3]
-                }
+                # 4. 如果沒有符合任何專家規則，則安全地回退到 AI 的初步分類
+                logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
+                return self.get_waste_info(category, language)
         except Exception as e:
             logger.error(f"Error getting specific waste info: {e}")
-            # 發生錯誤時，安全地回退到通用查詢
             return self.get_waste_info(category, language)
 
     # --- 以下為使用者資料相關函式，維持不變 ---
