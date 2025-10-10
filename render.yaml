@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ai-waste-classification-bot
+    env: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python database.py
+    startCommand: python main.py
+    envVars:
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:///database.db
+      - key: EPA_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: PUSH_MESSAGE_ENABLED
+        value: "true"
