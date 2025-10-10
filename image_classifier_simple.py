@@ -15,18 +15,8 @@ class ImageClassifier:
     def load_model(self):
         """載入預訓練模型"""
         try:
-            if os.path.exists(Config.MODEL_PATH):
-                # 嘗試載入 TensorFlow 模型
-                try:
-                    import tensorflow as tf
-                    self.model = tf.keras.models.load_model(Config.MODEL_PATH)
-                    logger.info("TensorFlow model loaded successfully")
-                    return
-                except Exception as e:
-                    logger.warning(f"Failed to load TensorFlow model: {str(e)}")
-            
-            # 如果沒有模型或載入失敗，使用簡單的規則分類
-            logger.info("Using rule-based classification as fallback")
+            # 直接使用規則分類，不依賴 TensorFlow
+            logger.info("Using rule-based classification")
             self.model = None
             
         except Exception as e:

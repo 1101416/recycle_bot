@@ -22,6 +22,9 @@ class Config:
     MODEL_PATH = 'models/waste_classifier.h5'
     IMAGE_SIZE = (224, 224)
     
+    # 簡化模式設定
+    SIMPLE_MODE = True
+    
     # 支援的語言
     SUPPORTED_LANGUAGES = {
         'zh-TW': '繁體中文',

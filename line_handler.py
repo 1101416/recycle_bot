@@ -10,12 +10,9 @@ from linebot.models import (
 from linebot.exceptions import LineBotApiError
 import logging
 from config import Config
-try:
-    from image_classifier import ImageClassifier
-except ImportError:
-    from image_classifier_simple import ImageClassifier
+from image_classifier_simple import ImageClassifier
 from recycle_db import RecycleDatabase
-from news_scraper import NewsScraper
+# from news_scraper import NewsScraper  # 暫時停用
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +21,7 @@ class LineMessageHandler:
         self.line_bot_api = line_bot_api
         self.image_classifier = ImageClassifier()
         self.recycle_db = RecycleDatabase()
-        self.news_scraper = NewsScraper()
+        # self.news_scraper = NewsScraper()  # 暫時停用
     
     def handle_text_message(self, event):
         """處理文字訊息"""
@@ -272,15 +269,11 @@ Feel free to ask if you have any questions!""",
     def _send_news_message(self, reply_token, user_lang):
         """發送環保新聞"""
         try:
-            news = self.news_scraper.get_latest_news(user_lang)
-            if news:
-                news_text = f"📰 最新環保新聞\n\n{news['title']}\n\n{news['summary']}\n\n🔗 詳細內容：{news['url']}"
-                self.line_bot_api.reply_message(reply_token, TextMessage(text=news_text))
-            else:
-                no_news_text = "目前沒有最新的環保新聞，請稍後再試。"
-                self.line_bot_api.reply_message(reply_token, TextMessage(text=no_news_text))
+            # 暫時使用預設新聞
+            news_text = "📰 環保小知識\n\n♻️ 正確的垃圾分類是保護環境的重要行動！\n\n• 塑膠瓶要清洗後壓扁回收\n• 紙類要避免沾濕\n• 廚餘要與其他垃圾分開處理\n\n讓我們一起為地球盡一份心力！🌱"
+            self.line_bot_api.reply_message(reply_token, TextMessage(text=news_text))
         except Exception as e:
-            logger.error(f"Error fetching news: {str(e)}")
+            logger.error(f"Error sending news: {str(e)}")
             self.line_bot_api.reply_message(reply_token, TextMessage(text="獲取新聞時發生錯誤，請稍後再試。"))
     
     def _send_user_stats(self, reply_token, user_id, user_lang):

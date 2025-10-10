@@ -6,7 +6,7 @@ import os
 import logging
 from config import Config
 from line_handler import LineMessageHandler
-from scheduler import SchedulerManager
+# from scheduler import SchedulerManager  # 暫時停用排程器
 
 # 設定日誌
 logging.basicConfig(level=logging.INFO)
@@ -21,9 +21,9 @@ handler = WebhookHandler(Config.LINE_CHANNEL_SECRET)
 # 初始化訊息處理器
 message_handler = LineMessageHandler(line_bot_api)
 
-# 初始化排程器
-scheduler = SchedulerManager()
-scheduler.start()
+# 初始化排程器（暫時停用）
+# scheduler = SchedulerManager()
+# scheduler.start()
 
 @app.route("/")
 def home():
@@ -109,7 +109,7 @@ def health_check():
         "services": {
             "line_bot": "running",
             "database": "connected",
-            "scheduler": "running" if scheduler.is_running() else "stopped"
+            "scheduler": "disabled"  # 暫時停用
         }
     }
 
