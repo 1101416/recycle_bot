@@ -5,8 +5,8 @@ gunicorn==21.2.0
 # LINE Bot
 line-bot-sdk==3.5.0
 
-# AI 模型 (TensorFlow)
-tensorflow-cpu==2.16.1
+# AI 模型 (TensorFlow Lite) - 修改處
+tflite-runtime==2.14.0  # 取代 tensorflow-cpu
 numpy==1.26.4
 Pillow==10.4.0
 
