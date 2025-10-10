@@ -3,10 +3,8 @@ services:
     name: ai-waste-classification-bot
     env: python
     plan: free
-    buildCommand: |
-      pip install -r requirements.txt
-      python database.py
-    startCommand: python main.py
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
     envVars:
       - key: LINE_CHANNEL_ACCESS_TOKEN
         sync: false
@@ -14,9 +12,7 @@ services:
         sync: false
       - key: DATABASE_URL
         value: sqlite:///database.db
-      - key: EPA_API_KEY
-        sync: false
-      - key: GOOGLE_MAPS_API_KEY
-        sync: false
       - key: PUSH_MESSAGE_ENABLED
         value: "true"
+      - key: FLASK_ENV
+        value: "production"

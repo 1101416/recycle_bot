@@ -113,16 +113,16 @@ def health_check():
         }
     }
 
+# 確保必要的目錄存在
+os.makedirs('models', exist_ok=True)
+os.makedirs('temp', exist_ok=True)
+os.makedirs('data', exist_ok=True)
+
+# 初始化資料庫
+from database import init_database
+init_database()
+
 if __name__ == "__main__":
-    # 確保必要的目錄存在
-    os.makedirs('models', exist_ok=True)
-    os.makedirs('temp', exist_ok=True)
-    os.makedirs('data', exist_ok=True)
-    
-    # 初始化資料庫
-    from database import init_database
-    init_database()
-    
     # 啟動應用程式
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)

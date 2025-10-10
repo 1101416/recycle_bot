@@ -10,7 +10,10 @@ from linebot.models import (
 from linebot.exceptions import LineBotApiError
 import logging
 from config import Config
-from image_classifier import ImageClassifier
+try:
+    from image_classifier import ImageClassifier
+except ImportError:
+    from image_classifier_simple import ImageClassifier
 from recycle_db import RecycleDatabase
 from news_scraper import NewsScraper
 
