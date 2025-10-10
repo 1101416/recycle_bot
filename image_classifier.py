@@ -31,7 +31,7 @@ class ImageClassifier:
             
             genai.configure(api_key=api_key)
             # V V V 最終修正處 V V V
-            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            self.model = genai.GenerativeModel('gemini-2.5-flash')
             # ^ ^ ^ 最終修正處 ^ ^ ^
             logger.info("Gemini API configured successfully with 'gemini-1.5-flash-latest' model.")
         except Exception as e:
@@ -71,3 +71,4 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
             return None
+
