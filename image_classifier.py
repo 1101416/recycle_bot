@@ -3,7 +3,7 @@ import logging
 from PIL import Image
 from config import Config
 import google.generativeai as genai
-from typing import Optional # <== 1. 新增這一行
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,13 @@ class ImageClassifier:
                 return
             
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-            logger.info("Gemini API configured successfully.")
+            # V V V 修正處 V V V
+            self.model = genai.GenerativeModel('gemini-pro-vision')
+            # ^ ^ ^ 修正處 ^ ^ ^
+            logger.info("Gemini API configured successfully with 'gemini-pro-vision' model.")
         except Exception as e:
             logger.error(f"Error initializing Gemini API: {e}")
 
-    # V 2. 修改下面這一行的語法 V
     def classify_image(self, image_path: str) -> Optional[dict]:
         """使用 Gemini API 進行垃圾分類"""
         if not self.model:
@@ -53,6 +54,10 @@ class ImageClassifier:
             # 清理並驗證 AI 的回應
             category = response.text.strip().lower()
             
+            # 針對鋁箔包類型的額外判斷
+            if '鋁箔包' in category or 'paper pack' in category:
+                category = 'paper' # 根據台灣回收分類，鋁箔包屬於紙容器
+
             if category in Config.WASTE_CATEGORIES:
                 logger.info(f"Gemini API classification result: '{category}'")
                 # API 沒有傳統的信心度，我們給一個固定值表示成功
