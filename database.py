@@ -41,15 +41,26 @@ def init_database():
 
 
 
+# ... (檔案上半部的 init_database 函式維持不變) ...
+
 def insert_default_data(conn):
-    """插入或更新專家規則 (包含繁中與英文)"""
+    """插入或更新專家規則 (包含多國語言與多關鍵字)"""
     cursor = conn.cursor()
     
+    # 每個品項的 'name' 欄位現在可以包含用逗號分隔的多個關鍵字
     default_waste_info = [
         # === 繁體中文規則 ===
-        ('other', '衛生紙', '屬於一般垃圾，請直接丟入垃圾桶。', '使用過的衛生紙、餐巾紙因纖維太短且有髒污，不可回收。', 'zh-TW'),
-        ('paper', '鋁箔包', '內容物清空並沖洗乾淨，壓扁後投入「紙容器類」回收。', '吸管及封膜屬於塑膠垃圾，請分開回收。', 'zh-TW'),
+        # --- 專家規則 (Specific Items) ---
+        ('other', '衛生紙,餐巾紙', '屬於一般垃圾，請直接丟入垃圾桶。', '使用過的衛生紙、餐巾紙因纖維太短且有髒污，不可回收。', 'zh-TW'),
+        ('other', '紙尿褲', '屬於一般垃圾，請妥善包覆後丟入垃圾桶。', '紙尿褲是複合材質，無法回收。', 'zh-TW'),
+        ('other', '感熱紙,電子發票,收據', '屬於一般垃圾，請直接丟入垃圾桶。', '含有化學物質無法回收。', 'zh-TW'),
+        ('other', '髒污的紙張,油污紙', '屬於一般垃圾，請直接丟入垃圾桶。', '沾有油漆、油污或寵物排泄物的紙張不可回收。', 'zh-TW'),
+        
+        ('paper', '鋁箔包,紙盒包,利樂包,豆漿,牛奶', '內容物清空並沖洗乾淨，壓扁後投入「紙容器類」回收。', '吸管及封膜屬於塑膠垃圾，請分開回收。', 'zh-TW'),
+        ('paper', '紙杯', '內容物清空並沖洗乾淨，投入「紙容器類」回收。', '杯蓋和吸管請分開回收。', 'zh-TW'),
         ('paper', '紙餐盒', '內容物清空並簡單沖洗，去除殘渣後，投入「紙容器類」回收。', '如果油污太嚴重無法清除，請以一般垃圾丟棄。', 'zh-TW'),
+
+        # --- 通用規則 (General Categories) ---
         ('plastic', '塑膠類', '清洗乾淨後投入塑膠類回收桶。', '乾淨的塑膠袋可以回收，但髒污的複合材質塑膠袋(如餅乾袋)不行。', 'zh-TW'),
         ('paper', '紙類', '整理乾淨、去除膠帶釘書針後，投入紙類回收桶。', '此類別指的是一般紙張，非紙容器。請保持乾燥。', 'zh-TW'),
         ('metal', '金屬類', '清洗乾淨後，投入金屬類回收桶。', '尖銳邊緣請小心處理，以免割傷。', 'zh-TW'),
@@ -57,8 +68,8 @@ def insert_default_data(conn):
         ('other', '其他', '屬於一般垃圾，請直接丟入垃圾桶。', '無法回收或規則未提及的物品皆屬此類。', 'zh-TW'),
 
         # === 英文規則 ===
-        ('other', 'Tissue Paper', 'This is general waste. Please throw it in the regular trash can.', 'Used tissues and napkins are not recyclable due to short fibers and contamination.', 'en'),
-        ('paper', 'Tetra Pak', 'Empty and rinse the container, then flatten it and put it in the "Paper Container" recycling bin.', 'Straws and plastic films should be recycled as plastic.', 'en'),
+        ('other', 'Tissue Paper,Napkin', 'This is general waste. Please throw it in the regular trash can.', 'Used tissues and napkins are not recyclable due to short fibers and contamination.', 'en'),
+        ('paper', 'Tetra Pak,Beverage Carton,Soya Milk,Milk Carton', 'Empty and rinse the container, then flatten it and put it in the "Paper Container" recycling bin.', 'Straws and plastic films should be recycled as plastic.', 'en'),
         ('paper', 'Paper Meal Box', 'Empty and briefly rinse to remove food residue, then put it in the "Paper Container" recycling bin.', 'If heavily soiled with grease, dispose of as general waste.', 'en'),
         ('plastic', 'Plastic', 'Rinse clean and place in the plastic recycling bin.', 'Clean plastic bags are recyclable, but dirty composite bags (like snack bags) are not.', 'en'),
         ('paper', 'Paper', 'Tidy up, remove tapes and staples, then place in the paper recycling bin.', 'This refers to general paper, not paper containers. Keep it dry.', 'en'),
@@ -69,23 +80,19 @@ def insert_default_data(conn):
 
     try:
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_name_lang ON waste_info (name, language)")
-        
-        # 為了確保更新，我們先刪除所有語言的舊資料再插入
         cursor.execute("DELETE FROM waste_info")
         logger.info("Cleared all old default data.")
-
-        cursor.executemany('''
-            INSERT INTO waste_info (category, name, disposal_method, tips, language)
-            VALUES (?, ?, ?, ?, ?)
-        ''', default_waste_info)
-        
+        cursor.executemany('INSERT INTO waste_info (category, name, disposal_method, tips, language) VALUES (?, ?, ?, ?, ?)', default_waste_info)
         conn.commit()
         logger.info(f"Inserted or updated {cursor.rowcount} expert rules for all languages.")
     except Exception as e:
         logger.error(f"Error inserting default data: {e}")
         raise
 
+# ... (檔案下半部的 if __name__ == "__main__": 維持不變) ...
+
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with updated expert and general rules!")
+
 
