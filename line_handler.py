@@ -104,7 +104,7 @@ class LineMessageHandler:
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['default_reply']))
 
     def handle_image_message(self, event):
-        """處理圖片訊息"""
+        """處理圖片訊息 (最終版)"""
         user_id = event.source.user_id
         self.recycle_db.get_or_create_user(user_id)
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
@@ -120,9 +120,12 @@ class LineMessageHandler:
                 classification_result = self.image_classifier.classify_image(temp_file_path)
                 
                 if classification_result:
+                    # 決定要用哪個語言的品項名稱去查詢資料庫
+                    item_name_for_db = classification_result['item_name_zh'] if user_lang == 'zh-TW' else classification_result['item_name_en']
+                    
                     waste_info = self.recycle_db.get_specific_waste_info(
                         classification_result['category'],
-                        classification_result['item_name'],
+                        item_name_for_db,
                         user_lang
                     )
                     
@@ -132,7 +135,7 @@ class LineMessageHandler:
                             waste_info['category'],
                             classification_result['confidence']
                         )
-                        self._send_classification_result(event.reply_token, classification_result, waste_info, texts)
+                        self._send_classification_result(event.reply_token, classification_result, waste_info, texts, user_lang)
                     else:
                         self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
                 else:
@@ -142,7 +145,7 @@ class LineMessageHandler:
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
-
+            
     def _send_language_menu(self, reply_token):
         """發送語言選擇選單"""
         # ... (此函式維持不變) ...
@@ -181,13 +184,19 @@ class LineMessageHandler:
         
         self.line_bot_api.reply_message(reply_token, TextMessage(text=stats_text))
 
-    def _send_classification_result(self, reply_token, classification_result, waste_info, texts):
-        """發送分類結果"""
+    def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
+        """發送分類結果 (最終版)"""
         confidence = classification_result['confidence']
         
+        # 根據使用者語言，決定要顯示哪個品項名稱
+        item_display_name = classification_result['item_name_en'] if user_lang == 'en' else classification_result['item_name_zh']
+        
+        # 組合 Category 欄位的顯示文字
+        category_display_text = f"{waste_info['category_name']} ({waste_info['category_name_zh']})"
+
         result_text = f"{texts['result_title']}\n\n"
-        result_text += f"{texts['result_item']}：{classification_result.get('item_name', '未知')}\n"
-        result_text += f"📂 {texts['result_category']}：{waste_info['category_name']}\n"
+        result_text += f"{texts['result_item']}：{item_display_name}\n"
+        result_text += f"📂 {texts['result_category']}：{category_display_text}\n"
         result_text += f"🎯 {texts['result_confidence']}：{confidence:.1f}%\n\n"
         result_text += f"♻️ {texts['result_method']}：\n{waste_info['disposal_method']}\n"
         
@@ -195,4 +204,6 @@ class LineMessageHandler:
             result_text += f"\n💡 {texts['result_tips']}：{waste_info['tips']}"
         
         self.line_bot_api.reply_message(reply_token, TextMessage(text=result_text))
+
+
 
