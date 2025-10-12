@@ -11,23 +11,19 @@ logger = logging.getLogger(__name__)
 # --- AI 模型設定 ---
 WASTE_CATEGORIES_TEXT = ", ".join(Config.WASTE_CATEGORIES.keys())
 
-# 給 AI 的新版專家指令 (Prompt)，加入了 PDF 中的台灣在地規則
+# 給 AI 的新版專家指令 (Prompt)，要求同時回傳中英文品項
 SYSTEM_PROMPT = f"""
-You are an expert in waste classification for Taiwan, referencing official government documents.
+You are a waste classification expert for Taiwan.
 Your task is to identify the main object in the user's image.
 First, classify it into one of the following general categories: {WASTE_CATEGORIES_TEXT}.
-Second, provide the specific name of the item in Traditional Chinese (e.g., '衛生紙', '鋁箔包', '寶特瓶').
+Second, provide the specific name of the item in BOTH Traditional Chinese and English.
 
-**IMPORTANT RULES FOR TAIWAN (from a government PDF):**
-- **Paper Containers ('紙容器')**: Beverage cartons (like Tetra Paks, milk cartons) must be cleaned and are classified as 'paper'. This is a special category.
-- **Non-recyclable Paper**: Used tissue paper ('衛生紙'), paper diapers ('紙尿褲'), thermal paper ('感熱紙' like receipts), and dirty paper are NOT recyclable and must be classified as 'other'.
-- **Recyclable Paper**: Clean paper, cardboard, and newspapers are 'paper'.
-- **Plastics ('塑膠類')**: Clean plastic bottles (PET), containers (PP, PE), and plastic bags are 'plastic'.
-- **Metals ('金屬類')**: Iron and aluminum cans are 'metal'.
-- **Glass ('玻璃類')**: Glass bottles and containers are 'glass'.
+**IMPORTANT RULES FOR TAIWAN:**
+- Beverage cartons (like Tetra Paks) are classified as 'paper'.
+- Used tissue paper is not recyclable and must be classified as 'other'.
 
-Based on these rules, you MUST respond in the following format, and nothing else:
-category: [lowercase_english_category], item: [traditional_chinese_item_name]
+You MUST respond in the following format, and nothing else:
+category: [lowercase_english_category], item_zh: [traditional_chinese_name], item_en: [english_name]
 """
 
 class ImageClassifier:
@@ -55,25 +51,28 @@ class ImageClassifier:
             img = Image.open(image_path)
             response = self.model.generate_content([SYSTEM_PROMPT, img])
             
-            # 使用正規表達式解析 AI 的回應
-            match = re.search(r"category:\s*(\w+),\s*item:\s*(.+)", response.text.strip())
+            # 更新正規表達式以解析新的回應格式
+            match = re.search(r"category:\s*(\w+),\s*item_zh:\s*([^,]+),\s*item_en:\s*(.+)", response.text.strip())
             
             if match:
                 category = match.group(1).lower()
-                item_name = match.group(2).strip()
+                item_name_zh = match.group(2).strip()
+                item_name_en = match.group(3).strip()
                 
                 if category in Config.WASTE_CATEGORIES:
-                    logger.info(f"Gemini API result: category='{category}', item='{item_name}'")
+                    logger.info(f"Gemini API result: category='{category}', item_zh='{item_name_zh}', item_en='{item_name_en}'")
                     return {
                         'category': category,
-                        'item_name': item_name,
-                        'confidence': 0.95 # 提高信心度，因為我們給了更明確的指令
+                        'item_name_zh': item_name_zh,
+                        'item_name_en': item_name_en,
+                        'confidence': 0.95
                     }
 
             logger.warning(f"Gemini API returned an unparsable response: '{response.text}'. Defaulting to 'other'.")
             return {
                 'category': 'other',
-                'item_name': '未知物品',
+                'item_name_zh': '未知物品',
+                'item_name_en': 'Unknown Item',
                 'confidence': 0.5
             }
 
