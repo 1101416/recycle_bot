@@ -44,8 +44,10 @@ class RecycleDatabase:
             logger.error(f"Error getting general waste info for category '{category}': {e}")
             return None
 
+# ... (get_waste_info 函式維持不變) ...
+
     def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Optional[Dict]:
-        """(智慧查詢) 依據品項名稱和語言取得資訊，並附加中文類別名"""
+        """(智慧查詢引擎 v2) 使用多關鍵字匹配來尋找最精確的規則"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -53,31 +55,49 @@ class RecycleDatabase:
                 all_rules = cursor.fetchall()
 
                 best_match = None
-                # 使用者語言是中文時，用中文品項比對
                 item_to_check = item_name if language == 'zh-TW' else item_name.lower()
                 
+                # 遍歷所有專家規則
                 for rule in all_rules:
-                    db_keyword = rule[1] if language == 'zh-TW' else rule[1].lower()
+                    db_keywords_str = rule[1]
                     
-                    if language == 'en' and db_keyword in ['plastic', 'paper', 'metal', 'glass', 'other']: continue
-                    if language == 'zh-TW' and db_keyword in Config.WASTE_CATEGORIES.values(): continue
+                    # 排除通用規則本身
+                    if language == 'en' and db_keywords_str in ['Plastic', 'Paper', 'Metal', 'Glass', 'Other']: continue
+                    if language == 'zh-TW' and db_keywords_str in Config.WASTE_CATEGORIES.values(): continue
                     
-                    if db_keyword in item_to_check:
-                        best_match = rule
-                        break
+                    # 將資料庫中的關鍵字字串，用逗號分隔成一個列表
+                    db_keywords = [kw.strip() for kw in db_keywords_str.split(',')]
+                    if language == 'en':
+                        db_keywords = [kw.lower() for kw in db_keywords]
 
+                    # 檢查是否有任何一個關鍵字出現在 AI 的辨識結果中
+                    for keyword in db_keywords:
+                        if keyword in item_to_check:
+                            best_match = rule
+                            break # 找到符合的關鍵字，跳出內層迴圈
+                    
+                    if best_match:
+                        break # 找到最佳匹配，跳出外層迴圈
+
+                # 如果找到精確的專家規則，就使用它
                 if best_match:
+                    logger.info(f"Expert rule found for '{item_name}', using rule for keywords '{best_match[1]}'.")
                     correct_category = best_match[0]
                     category_name_zh = Config.WASTE_CATEGORIES.get(correct_category)
                     
+                    # 決定要顯示的類別名稱（英文模式用英文，中文模式用中文）
+                    category_name_display = best_match[1].split(',')[0] # 只取第一個關鍵字作為代表名稱
+
                     return {
                         'category': correct_category,
-                        'category_name': best_match[1],
+                        'category_name': category_name_display,
                         'category_name_zh': category_name_zh,
                         'disposal_method': best_match[2],
                         'tips': best_match[3]
                     }
                 
+                # 如果沒有符合任何專家規則，則安全地回退到 AI 的初步分類
+                logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
                 return self.get_waste_info(category, language)
         except Exception as e:
             logger.error(f"Error getting specific waste info: {e}")
@@ -159,5 +179,6 @@ class RecycleDatabase:
         except Exception as e:
             logger.error(f"Error getting user stats: {e}")
             return {'total_classifications': 0, 'correct_classifications': 0, 'accuracy_rate': 0, 'most_common_category': '無', 'eco_points': 0}
+
 
 
