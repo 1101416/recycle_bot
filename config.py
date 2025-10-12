@@ -28,9 +28,7 @@ class Config:
     # 支援的語言
     SUPPORTED_LANGUAGES = {
         'zh-TW': '繁體中文',
-        'en': 'English',
-        'ja': '日本語',
-        'ko': '한국어'
+        'en': 'English'
     }
     
     # 垃圾分類類別
@@ -44,3 +42,4 @@ class Config:
         'electronics': '電子產品',
         'other': '其他'
     }
+
