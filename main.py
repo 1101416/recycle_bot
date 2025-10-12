@@ -1,7 +1,7 @@
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, ImageMessage, LocationMessage
+from linebot.models import MessageEvent, TextMessage, ImageMessage, LocationMessage, PostbackEvent
 import os
 import logging
 from config import Config
@@ -67,6 +67,15 @@ def handle_text_message(event):
             event.reply_token,
             TextMessage(text="抱歉，處理您的訊息時發生錯誤，請稍後再試。")
         )
+        
+@handler.add(PostbackEvent)
+def handle_postback(event):
+    """處理 Postback 事件 (例如語言選擇)"""
+    try:
+        message_handler.handle_postback(event)
+    except Exception as e:
+        logger.error(f"Error handling postback event: {str(e)}")
+
 
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image_message(event):
@@ -126,3 +135,4 @@ if __name__ == "__main__":
     # 啟動應用程式
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
