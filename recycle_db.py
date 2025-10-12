@@ -11,49 +11,48 @@ class RecycleDatabase:
     def __init__(self, db_path='database.db'):
         self.db_path = db_path
     
+    # ... (檔案開頭的 import 和 __init__ 維持不變) ...
+
     def get_waste_info(self, category: str, language: str = 'zh-TW') -> Optional[Dict]:
-        """(新版通用查詢) 依據 category，精準查詢其通用的處理規則"""
+        """(新版通用查詢) 依據 category 和 language，精準查詢其通用的處理規則"""
         try:
-            # 從 Config 取得該 category 的中文名稱，作為查詢的 key
-            general_item_name = Config.WASTE_CATEGORIES.get(category)
+            general_item_name_zh = Config.WASTE_CATEGORIES.get(category)
+            # 簡單對應英文通用名稱
+            general_item_name_en_map = {'塑膠類': 'Plastic', '紙類': 'Paper', '金屬類': 'Metal', '玻璃類': 'Glass', '其他': 'Other'}
+            general_item_name = general_item_name_en_map.get(general_item_name_zh) if language == 'en' else general_item_name_zh
+
             if not general_item_name:
                 return None
 
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                # 查詢 category 和 name 都符合的通用規則
                 cursor.execute(
                     "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND name = ? AND language = ? LIMIT 1",
-                    (category, general_item_name, 'zh-TW')
+                    (category, general_item_name, language) # <-- 使用傳入的 language
                 )
                 result = cursor.fetchone()
                 
                 if result:
-                    return {
-                        'category': result[0],
-                        'category_name': result[1],
-                        'disposal_method': result[2],
-                        'tips': result[3]
-                    }
+                    return {'category': result[0], 'category_name': result[1], 'disposal_method': result[2], 'tips': result[3]}
                 return None
         except Exception as e:
             logger.error(f"Error getting general waste info for category '{category}': {e}")
             return None
 
     def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Optional[Dict]:
-        """(智慧查詢) 依據品項名稱取得最精確的資訊，若無則回退到通用類別"""
+        """(智慧查詢) 依據品項名稱和語言取得最精確的資訊，若無則回退到通用類別"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE language = ?", ('zh-TW',))
+                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE language = ?", (language,)) # <-- 使用傳入的 language
                 all_rules = cursor.fetchall()
 
                 best_match = None
                 for rule in all_rules:
                     db_keyword = rule[1]
                     # 排除通用規則本身，只比對專家規則
-                    if db_keyword in Config.WASTE_CATEGORIES.values():
-                        continue
+                    if language == 'en' and db_keyword in ['Plastic', 'Paper', 'Metal', 'Glass', 'Other']: continue
+                    if language == 'zh-TW' and db_keyword in Config.WASTE_CATEGORIES.values(): continue
                     
                     if db_keyword in item_name:
                         best_match = rule
@@ -62,20 +61,16 @@ class RecycleDatabase:
                 if best_match:
                     logger.info(f"Expert rule found for '{item_name}', using rule for '{best_match[1]}'.")
                     correct_category = best_match[0]
-                    category_name_zh = Config.WASTE_CATEGORIES.get(correct_category, correct_category)
+                    category_name_display = best_match[1] # 直接使用資料庫中的名稱，例如 "Tetra Pak"
                     
-                    return {
-                        'category': correct_category,
-                        'category_name': category_name_zh,
-                        'disposal_method': best_match[2],
-                        'tips': best_match[3]
-                    }
+                    return {'category': correct_category, 'category_name': category_name_display, 'disposal_method': best_match[2], 'tips': best_match[3]}
                 
                 logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
                 return self.get_waste_info(category, language)
         except Exception as e:
             logger.error(f"Error getting specific waste info: {e}")
             return self.get_waste_info(category, language)
+
 
     # --- 以下為使用者資料相關函式，維持不變 ---
     def get_or_create_user(self, user_id: str, language: str = 'zh-TW') -> Dict:
@@ -150,3 +145,4 @@ class RecycleDatabase:
         except Exception as e:
             logger.error(f"Error getting user stats: {e}")
             return {'total_classifications': 0, 'correct_classifications': 0, 'accuracy_rate': 0, 'most_common_category': '無', 'eco_points': 0}
+
