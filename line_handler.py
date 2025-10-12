@@ -18,7 +18,7 @@ TEXTS = {
         'welcome_title': '🌱 AI 智能垃圾分類助手',
         'welcome_body': '歡迎使用！\n我可以幫您：\n• 📸 拍照識別垃圾類型\n• ♻️ 提供回收處理方式\n\n請拍照上傳垃圾圖片，或輸入 /help 查看完整功能！',
         'help': '📖 使用說明\n\n🔸 拍照分類\n直接上傳垃圾照片，我會自動識別並提供回收方式。\n\n🔸 文字指令\n• /start - 開始使用\n• /help - 查看幫助\n• /language - 語言設定\n• /stats - 我的統計',
-        'lang_selected': '語言已設定為：繁體中文',
+        'lang_selected': '🌎語言已設定為：繁體中文',
         'stats_title': '📊 您的環保統計',
         'stats_total': '總分類次數',
         'stats_accuracy': '正確分類率',
@@ -38,7 +38,7 @@ TEXTS = {
         'welcome_title': '🌱 AI Smart Waste Classification Assistant',
         'welcome_body': 'Welcome!\nI can help you:\n• 📸 Identify waste types from photos\n• ♻️ Provide recycling methods\n\nPlease upload a photo of waste or type /help for full features!',
         'help': '📖 User Guide\n\n🔸 Photo Classification\nUpload a photo of waste, and I will automatically identify it and provide recycling methods.\n\n🔸 Text Commands\n• /start - Start\n• /help - Help\n• /language - Language Settings\n• /stats - My Statistics',
-        'lang_selected': 'Language has been set to: English',
+        'lang_selected': '🌎Language has been set to: English',
         'stats_title': '📊 Your Eco Statistics',
         'stats_total': 'Total Classifications',
         'stats_accuracy': 'Accuracy Rate',
@@ -197,13 +197,13 @@ class LineMessageHandler:
         result_text = f"{texts['result_title']}\n\n"
         result_text += f"{texts['result_item']}：{item_display_name}\n"
         result_text += f"📂 {texts['result_category']}：{category_display_text}\n"
-        result_text += f"🎯 {texts['result_confidence']}：{confidence:.1f}%\n\n"
         result_text += f"♻️ {texts['result_method']}：\n{waste_info['disposal_method']}\n"
         
         if waste_info['tips']:
             result_text += f"\n💡 {texts['result_tips']}：{waste_info['tips']}"
         
         self.line_bot_api.reply_message(reply_token, TextMessage(text=result_text))
+
 
 
 
