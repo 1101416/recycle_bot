@@ -158,18 +158,6 @@ class LineMessageHandler:
                 title='English',
                 text='Select English interface',
                 actions=[PostbackAction(label='Select', data='lang_en')]
-            ),
-            CarouselColumn(
-                thumbnail_image_url='https://via.placeholder.com/300x200/FF9800/FFFFFF?text=日本語',
-                title='日本語',
-                text='日本語インターフェースを選択',
-                actions=[PostbackAction(label='選擇', data='lang_ja')]
-            ),
-            CarouselColumn(
-                thumbnail_image_url='https://via.placeholder.com/300x200/9C27B0/FFFFFF?text=한국어',
-                title='한국어',
-                text='한국어 인터페이스 선택',
-                actions=[PostbackAction(label='選擇', data='lang_ko')]
             )
         ])
         
@@ -207,3 +195,4 @@ class LineMessageHandler:
             result_text += f"\n💡 {texts['result_tips']}：{waste_info['tips']}"
         
         self.line_bot_api.reply_message(reply_token, TextMessage(text=result_text))
+
