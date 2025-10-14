@@ -182,19 +182,19 @@ class LineMessageHandler:
         stats_text += texts['stats_encourage']
         self.line_bot_api.reply_message(reply_token, TextMessage(text=stats_text))
 
-    # V V V 4. 新增 _create_trucks_flex_message 函式 V V V
     def _create_trucks_flex_message(self, trucks: List[Dict], texts: Dict) -> FlexSendMessage:
-        """建立垃圾車資訊的 Flex Message 輪播卡片"""
+        """建立垃圾車資訊的 Flex Message 輪播卡片 (多縣市版)"""
         bubbles = []
-        # 最多顯示 5 台最近的垃圾車
-        for truck in trucks[:5]:
+        for truck in trucks[:10]: # 最多顯示 10 筆結果
             bubble = BubbleContainer(
                 direction='ltr',
                 body=BoxComponent(
                     layout='vertical',
                     spacing='md',
                     contents=[
+                        # 顯示車號和所屬縣市
                         TextComponent(text=f"🚛 {truck['car']}", weight='bold', size='lg', color='#1DB446'),
+                        TextComponent(text=f"📍 {truck['city']}", size='xs', color='#AAAAAA'),
                         TextComponent(text=truck['location'], wrap=True, size='sm', color='#555555', margin='md'),
                         SeparatorComponent(margin='lg'),
                         BoxComponent(
@@ -203,16 +203,14 @@ class LineMessageHandler:
                             spacing='sm',
                             contents=[
                                 BoxComponent(
-                                    layout='baseline',
-                                    spacing='sm',
+                                    layout='baseline', spacing='sm',
                                     contents=[
                                         TextComponent(text='時間', color='#aaaaaa', size='xs', flex=2),
                                         TextComponent(text=truck['time'], wrap=True, color='#666666', size='sm', flex=5)
                                     ]
                                 ),
                                 BoxComponent(
-                                    layout='baseline',
-                                    spacing='sm',
+                                    layout='baseline', spacing='sm',
                                     contents=[
                                         TextComponent(text='距離', color='#aaaaaa', size='xs', flex=2),
                                         TextComponent(text=f"約 {truck['distance'] * 1000:.0f} 公尺", wrap=True, color='#666666', size='sm', flex=5)
@@ -225,17 +223,10 @@ class LineMessageHandler:
             )
             bubbles.append(bubble)
 
-        # 將多個 Bubble 組合成一個 Carousel (輪播)
-        carousel_contents = {
-            "type": "carousel",
-            "contents": [bubble.as_json_dict() for bubble in bubbles]
-        }
+        carousel_contents = {"type": "carousel", "contents": [bubble.as_json_dict() for bubble in bubbles]}
+        return FlexSendMessage(alt_text=texts['location_title'], contents=carousel_contents)
 
-        return FlexSendMessage(
-            alt_text=texts['location_title'],
-            contents=carousel_contents
-        )
-    # ^ ^ ^ 4. 新增 _create_trucks_flex_message 函式 ^ ^ ^
+
 
     def _create_result_flex_message(self, classification_result, waste_info, texts, user_lang):
         item_display_name = classification_result['item_name_en'] if user_lang == 'en' else classification_result['item_name_zh']
@@ -272,4 +263,5 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
