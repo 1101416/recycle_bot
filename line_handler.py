@@ -3,7 +3,8 @@ import tempfile
 from linebot.models import (
     TextMessage, ImageMessage, LocationMessage, PostbackEvent,
     TemplateSendMessage, CarouselTemplate, CarouselColumn,
-    PostbackAction, MessageAction, URIAction
+    PostbackAction, MessageAction, URIAction, FlexSendMessage, BubbleContainer, BoxComponent, TextComponent,
+    SeparatorComponent, IconComponent, ButtonComponent
 )
 import logging
 from config import Config
@@ -187,25 +188,78 @@ class LineMessageHandler:
         
         self.line_bot_api.reply_message(reply_token, TextMessage(text=stats_text))
 
-    def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
-        """發送分類結果 (最終版)"""
-        confidence = classification_result['confidence']
+    # ... (找到 _send_classification_result 函式的位置) ...
+
+    def _create_result_flex_message(self, classification_result, waste_info, texts, user_lang):
+        """建立精美的 Flex Message 分類結果卡片"""
         
-        # 根據使用者語言，決定要顯示哪個品項名稱
         item_display_name = classification_result['item_name_en'] if user_lang == 'en' else classification_result['item_name_zh']
-        
-        # 組合 Category 欄位的顯示文字
         category_display_text = f"{waste_info['category_name']} ({waste_info['category_name_zh']})"
 
-        result_text = f"{texts['result_title']}\n\n"
-        result_text += f"{texts['result_item']}：{item_display_name}\n"
-        result_text += f"📂 {texts['result_category']}：{category_display_text}\n"
-        result_text += f"♻️ {texts['result_method']}：\n{waste_info['disposal_method']}\n"
-        
-        if waste_info['tips']:
-            result_text += f"\n💡 {texts['result_tips']}：{waste_info['tips']}"
-        
-        self.line_bot_api.reply_message(reply_token, TextMessage(text=result_text))
+        bubble = BubbleContainer(
+            direction='ltr',
+            header=BoxComponent(
+                layout='vertical',
+                contents=[
+                    TextComponent(text=texts['result_title'], weight='bold', size='xl', color='#1DB446')
+                ]
+            ),
+            body=BoxComponent(
+                layout='vertical',
+                spacing='lg',
+                contents=[
+                    # 辨識物品
+                    BoxComponent(
+                        layout='horizontal',
+                        contents=[
+                            TextComponent(text=f"{texts['result_item']}:", size='sm', color='#555555', flex=4),
+                            TextComponent(text=item_display_name, size='sm', color='#111111', align='end', flex=6, weight='bold')
+                        ]
+                    ),
+                    # 類別
+                    BoxComponent(
+                        layout='horizontal',
+                        contents=[
+                            TextComponent(text=f"📂 {texts['result_category']}:", size='sm', color='#555555', flex=4),
+                            TextComponent(text=category_display_text, size='sm', color='#111111', align='end', flex=6)
+                        ]
+                    ),
+                    # 信心度
+                    BoxComponent(
+                        layout='horizontal',
+                        contents=[
+                            TextComponent(text=f"🎯 {texts['result_confidence']}:", size='sm', color='#555555', flex=4),
+                            TextComponent(text=f"{classification_result['confidence']:.0%}", size='sm', color='#111111', align='end', flex=6)
+                        ]
+                    ),
+                    SeparatorComponent(margin='md'),
+                    # 處理方式
+                    BoxComponent(
+                        layout='vertical',
+                        margin='lg',
+                        contents=[
+                            TextComponent(text=f"♻️ {texts['result_method']}", weight='bold', size='md', margin='sm'),
+                            TextComponent(text=waste_info['disposal_method'], wrap=True, size='sm', margin='md', color='#333333')
+                        ]
+                    ),
+                    # 小提醒
+                    BoxComponent(
+                        layout='vertical',
+                        margin='lg',
+                        contents=[
+                            TextComponent(text=f"💡 {texts['result_tips']}", weight='bold', size='md', margin='sm'),
+                            TextComponent(text=waste_info.get('tips', '-'), wrap=True, size='sm', margin='md', color='#333333')
+                        ]
+                    )
+                ]
+            )
+        )
+        return FlexSendMessage(alt_text=texts['result_title'], contents=bubble)
+
+    def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
+        """發送由 Flex Message 構成的分類結果"""
+        flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
+        self.line_bot_api.reply_message(reply_token, flex_message)
 
 
 
