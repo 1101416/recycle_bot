@@ -147,17 +147,18 @@ class LineMessageHandler:
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
             
     def _send_language_menu(self, reply_token):
-        """發送語言選擇選單"""
-        # ... (此函式維持不變) ...
+        """發送美化後的語言選擇選單"""
         carousel_template = CarouselTemplate(columns=[
             CarouselColumn(
-                thumbnail_image_url='https://via.placeholder.com/300x200/4CAF50/FFFFFF?text=繁體中文',
+                # 使用台灣意象的圖片
+                thumbnail_image_url='https://i.imgur.com/CoN90hA.png',
                 title='繁體中文',
                 text='選擇繁體中文介面',
                 actions=[PostbackAction(label='選擇', data='lang_zh-TW')]
             ),
             CarouselColumn(
-                thumbnail_image_url='https://via.placeholder.com/300x200/2196F3/FFFFFF?text=English',
+                # 使用英文意象的圖片
+                thumbnail_image_url='https://i.imgur.com/4l6A0p5.png',
                 title='English',
                 text='Select English interface',
                 actions=[PostbackAction(label='Select', data='lang_en')]
@@ -170,6 +171,8 @@ class LineMessageHandler:
         )
         self.line_bot_api.reply_message(reply_token, template_message)
 
+
+    
     def _send_user_stats(self, reply_token, user_id, user_lang):
         """發送使用者統計資訊"""
         stats = self.recycle_db.get_user_stats(user_id)
@@ -203,6 +206,7 @@ class LineMessageHandler:
             result_text += f"\n💡 {texts['result_tips']}：{waste_info['tips']}"
         
         self.line_bot_api.reply_message(reply_token, TextMessage(text=result_text))
+
 
 
 
