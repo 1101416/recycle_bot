@@ -10,15 +10,16 @@ import logging
 from config import Config
 from image_classifier import ImageClassifier
 from recycle_db import RecycleDatabase
+from garbage_truck_api import GarbageTruckAPI # <== 1. 新增匯入
 
 logger = logging.getLogger(__name__)
 
-# --- 多語言文案庫 ---
+# --- 多語言文案庫 (已加入位置相關文案) ---
 TEXTS = {
     'zh-TW': {
         'welcome_title': '🌱 AI 智能垃圾分類助手',
-        'welcome_body': '歡迎使用！\n我可以幫您：\n• 📸 拍照識別垃圾類型\n• ♻️ 提供回收處理方式\n\n請拍照上傳垃圾圖片，或輸入 /help 查看完整功能！',
-        'help': '📖 使用說明\n\n🔸 拍照分類\n直接上傳垃圾照片，我會自動識別並提供回收方式。\n\n🔸 文字指令\n• /start - 開始使用\n• /help - 查看幫助\n• /language - 語言設定\n• /stats - 我的統計',
+        'welcome_body': '歡迎使用！\n我可以幫您：\n• 📸 拍照識別垃圾類型\n• 📍 傳送位置查詢附近垃圾車\n\n請拍照上傳或傳送您的位置！',
+        'help': '📖 使用說明\n\n🔸 拍照分類\n直接上傳垃圾照片，我會自動識別並提供回收方式。\n\n🔸 位置查詢\n傳送您的位置資訊，我會尋找附近的垃圾車。\n\n🔸 文字指令\n• /start - 開始使用\n• /help - 查看幫助\n• /language - 語言設定\n• /stats - 我的統計',
         'lang_selected': '🌎語言已設定為：繁體中文',
         'stats_title': '📊 您的環保統計',
         'stats_total': '總分類次數',
@@ -33,29 +34,35 @@ TEXTS = {
         'result_method': '處理方式',
         'result_tips': '小提醒',
         'error_unrecognized': '抱歉，無法識別這張圖片中的垃圾類型。\n請確保：\n• 圖片清晰\n• 垃圾在圖片中佔主要部分\n• 光線充足\n\n請重新拍照或嘗試其他圖片。',
-        'default_reply': '請上傳垃圾照片進行分類，或輸入 /help 查看完整功能！'
+        'default_reply': '請上傳垃圾照片進行分類，或輸入 /help 查看完整功能！',
+        # V V V 新增位置相關文案 V V V
+        'location_title': '📍 附近垃圾車資訊 (新北市)',
+        'location_searching': '正在查詢您附近 1 公里內的垃圾車，請稍候...',
+        'location_not_found': '抱歉，目前在您附近 1 公里內找不到即時垃圾車資訊。',
+        'location_api_error': '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。'
+        # ^ ^ ^ 新增位置相關文案 ^ ^ ^
     },
     'en': {
         'welcome_title': '🌱 AI Smart Waste Classification Assistant',
-        'welcome_body': 'Welcome!\nI can help you:\n• 📸 Identify waste types from photos\n• ♻️ Provide recycling methods\n\nPlease upload a photo of waste or type /help for full features!',
-        'help': '📖 User Guide\n\n🔸 Photo Classification\nUpload a photo of waste, and I will automatically identify it and provide recycling methods.\n\n🔸 Text Commands\n• /start - Start\n• /help - Help\n• /language - Language Settings\n• /stats - My Statistics',
+        'welcome_body': 'Welcome!\nI can help you:\n• 📸 Identify waste types from photos\n• 📍 Send location to find nearby garbage trucks\n\nPlease upload a photo or send your location!',
+        'help': '📖 User Guide\n\n🔸 Photo Classification\nUpload a photo of waste for automatic identification.\n\n🔸 Location Service\nSend your location to find nearby garbage trucks.\n\n🔸 Text Commands\n• /start - Start\n• /help - Help\n• /language - Language Settings\n• /stats - My Statistics',
         'lang_selected': '🌎Language has been set to: English',
-        'stats_title': '📊 Your Eco Statistics',
-        'stats_total': 'Total Classifications',
-        'stats_accuracy': 'Accuracy Rate',
-        'stats_common': 'Most Common Category',
-        'stats_points': 'Eco Points',
-        'stats_encourage': 'Keep up the great eco-friendly habits! 🌱',
+        # ... (其他英文文案維持不變) ...
         'result_title': '🔍 Classification Result',
         'result_item': 'Identified Item',
         'result_category': 'Category',
         'result_confidence': 'Confidence',
         'result_method': 'Disposal Method',
         'result_tips': 'Tips',
-        'error_unrecognized': 'Sorry, I couldn\'t recognize the item in this image.\nPlease ensure:\n• The image is clear\n• The waste is the main subject\n• The lighting is good\n\nPlease try another photo.',
-        'default_reply': 'Please upload a photo for classification, or type /help to see all commands!'
+        'error_unrecognized': 'Sorry, I couldn\'t recognize the item in this image.\nPlease try another photo.',
+        'default_reply': 'Please upload a photo for classification, or type /help to see all commands!',
+        # V V V 新增位置相關文案 V V V
+        'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
+        'location_searching': 'Searching for garbage trucks within 1 km of your location, please wait...',
+        'location_not_found': 'Sorry, no real-time garbage truck information found within 1 km of your location.',
+        'location_api_error': 'Sorry, an error occurred while fetching garbage truck information. Please try again later.'
+        # ^ ^ ^ 新增位置相關文案 ^ ^ ^
     }
-    # 您可以繼續加入 'ja' 和 'ko' 的文案
 }
 
 class LineMessageHandler:
@@ -63,35 +70,26 @@ class LineMessageHandler:
         self.line_bot_api = line_bot_api
         self.image_classifier = ImageClassifier()
         self.recycle_db = RecycleDatabase()
+        self.garbage_truck_api = GarbageTruckAPI() # <== 2. 初始化 API 專家
 
     def _get_texts(self, lang_code):
-        """安全地取得文案，若無則回退到英文"""
         return TEXTS.get(lang_code, TEXTS['en'])
 
     def handle_postback(self, event):
-        """處理 Postback 事件"""
         user_id = event.source.user_id
         postback_data = event.postback.data
-
         if postback_data.startswith('lang_'):
             lang_code = postback_data.split('_')[1]
-            success = self.recycle_db.update_user_language(user_id, lang_code)
-            
-            if success:
+            if self.recycle_db.update_user_language(user_id, lang_code):
                 texts = self._get_texts(lang_code)
-                reply_text = texts['lang_selected']
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=reply_text))
+                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['lang_selected']))
 
     def handle_text_message(self, event):
-        """處理文字訊息"""
         user_id = event.source.user_id
         text = event.message.text.strip().lower()
-        
-        # 取得或創建使用者，並取得語言偏好
         self.recycle_db.get_or_create_user(user_id)
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
-        
         if text in ['/start', '開始', 'start']:
             reply_text = f"{texts['welcome_title']}\n\n{texts['welcome_body']}"
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=reply_text))
@@ -105,37 +103,22 @@ class LineMessageHandler:
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['default_reply']))
 
     def handle_image_message(self, event):
-        """處理圖片訊息 (最終版)"""
         user_id = event.source.user_id
         self.recycle_db.get_or_create_user(user_id)
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
-
         try:
             message_content = self.line_bot_api.get_message_content(event.message.id)
             with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
                 temp_file.write(message_content.content)
                 temp_file_path = temp_file.name
-            
             try:
                 classification_result = self.image_classifier.classify_image(temp_file_path)
-                
                 if classification_result:
-                    # 決定要用哪個語言的品項名稱去查詢資料庫
                     item_name_for_db = classification_result['item_name_zh'] if user_lang == 'zh-TW' else classification_result['item_name_en']
-                    
-                    waste_info = self.recycle_db.get_specific_waste_info(
-                        classification_result['category'],
-                        item_name_for_db,
-                        user_lang
-                    )
-                    
+                    waste_info = self.recycle_db.get_specific_waste_info(classification_result['category'], item_name_for_db, user_lang)
                     if waste_info:
-                        self.recycle_db.record_classification(
-                            user_id, 
-                            waste_info['category'],
-                            classification_result['confidence']
-                        )
+                        self.recycle_db.record_classification(user_id, waste_info['category'], classification_result['confidence'])
                         self._send_classification_result(event.reply_token, classification_result, waste_info, texts, user_lang)
                     else:
                         self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
@@ -146,122 +129,145 @@ class LineMessageHandler:
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
-            
-    def _send_language_menu(self, reply_token):
-        """發送美化後的語言選擇選單"""
-        carousel_template = CarouselTemplate(columns=[
-            CarouselColumn(
-                # 使用台灣意象的圖片
-                thumbnail_image_url='https://i.imgur.com/CoN90hA.png',
-                title='繁體中文',
-                text='選擇繁體中文介面',
-                actions=[PostbackAction(label='選擇', data='lang_zh-TW')]
-            ),
-            CarouselColumn(
-                # 使用英文意象的圖片
-                thumbnail_image_url='https://i.imgur.com/4l6A0p5.png',
-                title='English',
-                text='Select English interface',
-                actions=[PostbackAction(label='Select', data='lang_en')]
-            )
-        ])
-        
-        template_message = TemplateSendMessage(
-            alt_text='語言選擇 / Language Selection',
-            template=carousel_template
-        )
-        self.line_bot_api.reply_message(reply_token, template_message)
 
-
-    
-    def _send_user_stats(self, reply_token, user_id, user_lang):
-        """發送使用者統計資訊"""
-        stats = self.recycle_db.get_user_stats(user_id)
+    # V V V 3. 新增 handle_location_message 函式 V V V
+    def handle_location_message(self, event):
+        """處理位置訊息"""
+        user_id = event.source.user_id
+        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
 
+        latitude = event.message.latitude
+        longitude = event.message.longitude
+        
+        # 先回覆「正在查詢」訊息，避免 LINE 官方判定為超時無回應
+        self.line_bot_api.reply_message(
+            event.reply_token,
+            TextMessage(text=texts['location_searching'])
+        )
+
+        try:
+            # 呼叫 API 取得附近的垃圾車 (這一步可能會需要幾秒鐘)
+            nearby_trucks = self.garbage_truck_api.get_nearby_trucks(latitude, longitude)
+
+            # 因為 reply_message 只能用一次，後續的訊息改用 push_message
+            if nearby_trucks:
+                flex_message = self._create_trucks_flex_message(nearby_trucks, texts)
+                self.line_bot_api.push_message(user_id, flex_message)
+            else:
+                self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_not_found']))
+        
+        except Exception as e:
+            logger.error(f"Error handling location message: {e}")
+            self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_api_error']))
+    # ^ ^ ^ 3. 新增 handle_location_message 函式 ^ ^ ^
+
+    def _send_language_menu(self, reply_token):
+        carousel_template = CarouselTemplate(columns=[
+            CarouselColumn(thumbnail_image_url='https://i.imgur.com/CoN90hA.png', title='繁體中文', text='選擇繁體中文介面', actions=[PostbackAction(label='選擇', data='lang_zh-TW')]),
+            CarouselColumn(thumbnail_image_url='https://i.imgur.com/4l6A0p5.png', title='English', text='Select English interface', actions=[PostbackAction(label='Select', data='lang_en')])
+        ])
+        template_message = TemplateSendMessage(alt_text='語言選擇 / Language Selection', template=carousel_template)
+        self.line_bot_api.reply_message(reply_token, template_message)
+
+    def _send_user_stats(self, reply_token, user_id, user_lang):
+        stats = self.recycle_db.get_user_stats(user_id)
+        texts = self._get_texts(user_lang)
         stats_text = f"{texts['stats_title']}\n\n"
         stats_text += f"🔸 {texts['stats_total']}：{stats['total_classifications']}\n"
         stats_text += f"🔸 {texts['stats_accuracy']}：{stats['accuracy_rate']:.1f}%\n"
         stats_text += f"🔸 {texts['stats_common']}：{stats['most_common_category']}\n"
         stats_text += f"🔸 {texts['stats_points']}：{stats['eco_points']}\n\n"
         stats_text += texts['stats_encourage']
-        
         self.line_bot_api.reply_message(reply_token, TextMessage(text=stats_text))
 
-    # ... (找到 _send_classification_result 函式的位置) ...
+    # V V V 4. 新增 _create_trucks_flex_message 函式 V V V
+    def _create_trucks_flex_message(self, trucks: List[Dict], texts: Dict) -> FlexSendMessage:
+        """建立垃圾車資訊的 Flex Message 輪播卡片"""
+        bubbles = []
+        # 最多顯示 5 台最近的垃圾車
+        for truck in trucks[:5]:
+            bubble = BubbleContainer(
+                direction='ltr',
+                body=BoxComponent(
+                    layout='vertical',
+                    spacing='md',
+                    contents=[
+                        TextComponent(text=f"🚛 {truck['car']}", weight='bold', size='lg', color='#1DB446'),
+                        TextComponent(text=truck['location'], wrap=True, size='sm', color='#555555', margin='md'),
+                        SeparatorComponent(margin='lg'),
+                        BoxComponent(
+                            layout='vertical',
+                            margin='lg',
+                            spacing='sm',
+                            contents=[
+                                BoxComponent(
+                                    layout='baseline',
+                                    spacing='sm',
+                                    contents=[
+                                        TextComponent(text='時間', color='#aaaaaa', size='xs', flex=2),
+                                        TextComponent(text=truck['time'], wrap=True, color='#666666', size='sm', flex=5)
+                                    ]
+                                ),
+                                BoxComponent(
+                                    layout='baseline',
+                                    spacing='sm',
+                                    contents=[
+                                        TextComponent(text='距離', color='#aaaaaa', size='xs', flex=2),
+                                        TextComponent(text=f"約 {truck['distance'] * 1000:.0f} 公尺", wrap=True, color='#666666', size='sm', flex=5)
+                                    ]
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+            bubbles.append(bubble)
+
+        # 將多個 Bubble 組合成一個 Carousel (輪播)
+        carousel_contents = {
+            "type": "carousel",
+            "contents": [bubble.as_json_dict() for bubble in bubbles]
+        }
+
+        return FlexSendMessage(
+            alt_text=texts['location_title'],
+            contents=carousel_contents
+        )
+    # ^ ^ ^ 4. 新增 _create_trucks_flex_message 函式 ^ ^ ^
 
     def _create_result_flex_message(self, classification_result, waste_info, texts, user_lang):
-        """建立精美的 Flex Message 分類結果卡片"""
-        
         item_display_name = classification_result['item_name_en'] if user_lang == 'en' else classification_result['item_name_zh']
         category_display_text = f"{waste_info['category_name']} ({waste_info['category_name_zh']})"
-
         bubble = BubbleContainer(
             direction='ltr',
-            header=BoxComponent(
-                layout='vertical',
-                contents=[
-                    TextComponent(text=texts['result_title'], weight='bold', size='xl', color='#1DB446')
-                ]
-            ),
-            body=BoxComponent(
-                layout='vertical',
-                spacing='lg',
-                contents=[
-                    # 辨識物品
-                    BoxComponent(
-                        layout='horizontal',
-                        contents=[
-                            TextComponent(text=f"{texts['result_item']}:", size='sm', color='#555555', flex=4),
-                            TextComponent(text=item_display_name, size='sm', color='#111111', align='end', flex=6, weight='bold')
-                        ]
-                    ),
-                    # 類別
-                    BoxComponent(
-                        layout='horizontal',
-                        contents=[
-                            TextComponent(text=f"📂 {texts['result_category']}:", size='sm', color='#555555', flex=4),
-                            TextComponent(text=category_display_text, size='sm', color='#111111', align='end', flex=6)
-                        ]
-                    ),
-                    # 信心度
-                    BoxComponent(
-                        layout='horizontal',
-                        contents=[
-                            TextComponent(text=f"🎯 {texts['result_confidence']}:", size='sm', color='#555555', flex=4),
-                            TextComponent(text=f"{classification_result['confidence']:.0%}", size='sm', color='#111111', align='end', flex=6)
-                        ]
-                    ),
-                    SeparatorComponent(margin='md'),
-                    # 處理方式
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(text=f"♻️ {texts['result_method']}", weight='bold', size='md', margin='sm'),
-                            TextComponent(text=waste_info['disposal_method'], wrap=True, size='sm', margin='md', color='#333333')
-                        ]
-                    ),
-                    # 小提醒
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(text=f"💡 {texts['result_tips']}", weight='bold', size='md', margin='sm'),
-                            TextComponent(text=waste_info.get('tips', '-'), wrap=True, size='sm', margin='md', color='#333333')
-                        ]
-                    )
-                ]
-            )
+            header=BoxComponent(layout='vertical', contents=[TextComponent(text=texts['result_title'], weight='bold', size='xl', color='#1DB446')]),
+            body=BoxComponent(layout='vertical', spacing='lg', contents=[
+                BoxComponent(layout='horizontal', contents=[
+                    TextComponent(text=f"{texts['result_item']}:", size='sm', color='#555555', flex=4),
+                    TextComponent(text=item_display_name, size='sm', color='#111111', align='end', flex=6, weight='bold')
+                ]),
+                BoxComponent(layout='horizontal', contents=[
+                    TextComponent(text=f"📂 {texts['result_category']}:", size='sm', color='#555555', flex=4),
+                    TextComponent(text=category_display_text, size='sm', color='#111111', align='end', flex=6)
+                ]),
+                BoxComponent(layout='horizontal', contents=[
+                    TextComponent(text=f"🎯 {texts['result_confidence']}:", size='sm', color='#555555', flex=4),
+                    TextComponent(text=f"{classification_result['confidence']:.0%}", size='sm', color='#111111', align='end', flex=6)
+                ]),
+                SeparatorComponent(margin='md'),
+                BoxComponent(layout='vertical', margin='lg', contents=[
+                    TextComponent(text=f"♻️ {texts['result_method']}", weight='bold', size='md', margin='sm'),
+                    TextComponent(text=waste_info['disposal_method'], wrap=True, size='sm', margin='md', color='#333333')
+                ]),
+                BoxComponent(layout='vertical', margin='lg', contents=[
+                    TextComponent(text=f"💡 {texts['result_tips']}", weight='bold', size='md', margin='sm'),
+                    TextComponent(text=waste_info.get('tips', '-'), wrap=True, size='sm', margin='md', color='#333333')
+                ])
+            ])
         )
         return FlexSendMessage(alt_text=texts['result_title'], contents=bubble)
 
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
-        """發送由 Flex Message 構成的分類結果"""
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
-
-
-
-
-
