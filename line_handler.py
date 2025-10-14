@@ -7,6 +7,7 @@ from linebot.models import (
     SeparatorComponent, IconComponent, ButtonComponent
 )
 import logging
+from typing import List, Dict
 from config import Config
 from image_classifier import ImageClassifier
 from recycle_db import RecycleDatabase
@@ -271,3 +272,4 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
