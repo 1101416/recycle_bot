@@ -1,104 +1,77 @@
-# kao_debug.py
 import requests
-import math
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("kao_debug")
+logger = logging.getLogger(__name__)
 
+# --- 高雄市垃圾車公開資料 API 網址 (根據官方文件) ---
+# 這是官方文件頁面指定的 API 端點
 KAOHSIUNG_API_URL = "https://api.kcg.gov.tw/api/service/Get/14fe516d-ac62-4905-9325-70daae7616bd"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (KaohsiungClient/1.0)",
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-    # "Referer": "https://data.kcg.gov.tw/"  # 如果需要可打開
-}
+class GarbageTruckAPI:
+    def get_nearby_trucks(self, latitude: float, longitude: float, radius_km: float = 2.0) -> List[Dict]:
+        """
+        (高雄市專用版 v3) 根據官方文件重新實作
+        """
+        nearby_trucks = []
+        user_lat = float(latitude)
+        user_lon = float(longitude)
 
-def haversine_km(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return R * c
+        try:
+            response = requests.get(KAOHSIUNG_API_URL, timeout=30) # 延長等待時間
+            response.raise_for_status() # 確保狀態碼是 200
 
-def extract_list_from_payload(payload: Any) -> List[Dict]:
-    # 若 payload 已經是 list
-    if isinstance(payload, list):
-        return payload
-    if not isinstance(payload, dict):
-        return []
-    # 常見 container keys
-    for k in ("data", "Data", "records", "result", "items", "rows"):
-        v = payload.get(k)
-        if isinstance(v, list):
-            return v
-    # 嘗試尋找任何 value 為 list
-    for v in payload.values():
-        if isinstance(v, list):
-            return v
-    return []
+            # 根據文件，資料應該包在 'data' 這個 key 裡面
+            json_response = response.json()
+            all_trucks = json_response.get("data", [])
+            
+            if not all_trucks or not isinstance(all_trucks, list):
+                logger.warning("Kaohsiung API returned no valid data in 'data' field.")
+                return []
 
-def parse_latlon(truck: Dict[str, Any]):
-    lat_keys = ("lat", "latitude", "y", "Y", "緯度", "Lat", "LAT", "car_lat")
-    lon_keys = ("lng", "longitude", "x", "X", "經度", "Lon", "LON", "car_lon")
-    lat_val = None
-    lon_val = None
-    for k in lat_keys:
-        if k in truck and truck[k] not in (None, "", "NULL"):
-            lat_val = truck[k]; break
-    for k in lon_keys:
-        if k in truck and truck[k] not in (None, "", "NULL"):
-            lon_val = truck[k]; break
-    if lat_val is None or lon_val is None:
-        return None
-    try:
-        return float(lat_val), float(lon_val)
-    except (ValueError, TypeError):
-        return None
+            for truck in all_trucks:
+                try:
+                    # 安全地解析官方文件指定的資料欄位
+                    car_no = truck.get('car_no')
+                    lat_str = truck.get('car_lat')
+                    lon_str = truck.get('car_lon')
+                    location = truck.get('location')
+                    time = truck.get('work_time')
 
-def debug_fetch():
-    s = requests.Session()
-    s.headers.update(HEADERS)
-    try:
-        r = s.get(KAOHSIUNG_API_URL, timeout=15)
-    except Exception as e:
-        logger.error("HTTP request failed: %s", e)
-        return
+                    # 確保所有必要欄位都存在
+                    if not all([car_no, location, time, lat_str, lon_str]):
+                        continue
+                    
+                    lat = float(lat_str)
+                    lon = float(lon_str)
 
-    logger.info("status_code: %s", r.status_code)
-    logger.info("content-type: %s", r.headers.get('Content-Type'))
-    text = r.text or ""
-    logger.info("response text (first 1200 chars):\n%s", text[:1200])
+                    # 計算距離
+                    dist_sq = ((lat - user_lat) * 111)**2 + ((lon - user_lon) * 111)**2
+                    if dist_sq <= radius_km**2:
+                        truck_info = {
+                            'car': car_no,
+                            'location': location,
+                            'time': time,
+                            'city': '高雄市',
+                            'distance': round(dist_sq**0.5, 2)
+                        }
+                        nearby_trucks.append(truck_info)
+                
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.warning(f"Skipping a truck record due to parsing error: {e}. Record: {truck}")
+                    continue
+        
+        except requests.exceptions.Timeout:
+            logger.error(f"Request to Kaohsiung API timed out.")
+            return []
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to connect or request from Kaohsiung API: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            return []
 
-    # 嘗試解析 JSON
-    payload = None
-    try:
-        payload = r.json()
-        logger.info("response parsed as JSON (type=%s)", type(payload))
-    except Exception as e:
-        logger.warning("response.json() failed: %s", e)
-        # 如果不是 JSON 就早點回來除錯
-        return
-
-    all_trucks = extract_list_from_payload(payload)
-    logger.info("extracted %d items from payload", len(all_trucks))
-
-    # 印出前 5 筆的欄位鍵與嘗試解析出 lat/lon
-    for i, t in enumerate(all_trucks[:5]):
-        logger.info("---- item %d raw keys: %s", i, list(t.keys()) if isinstance(t, dict) else type(t))
-        latlon = parse_latlon(t) if isinstance(t, dict) else None
-        logger.info("parsed latlon: %s", latlon)
-        # 嘗試找車牌或車號欄位
-        maybe_car = None
-        for k in ("car", "車牌", "car_no", "carno", "車號", "vehicle_no"):
-            if isinstance(t, dict) and k in t:
-                maybe_car = t.get(k); break
-        logger.info("maybe car: %s", maybe_car)
-        logger.info("raw item preview: %s", str(t)[:500])
-
-if __name__ == "__main__":
-    debug_fetch()
+        # 根據距離排序
+        nearby_trucks.sort(key=lambda x: x['distance'])
+        logger.info(f"Found {len(nearby_trucks)} nearby garbage trucks in Kaohsiung City.")
+        return nearby_trucks
