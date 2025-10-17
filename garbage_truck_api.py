@@ -4,41 +4,44 @@ from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-# --- 桃園市垃圾車即時動態 API (網站背後的隱藏版 API) ---
-# 這個 API 會回傳桃園市所有正在線上作業的垃圾車即時資訊
-TAOYUAN_REALTIME_API_URL = "https://route.tyoem.gov.tw/api/get_all_car_location"
+# --- 桃園市垃圾車即時動態 API (2025年最新驗證版) ---
+# 這是從官方 App "桃園環保通" 分析出的最新 API 端點
+TAOYUAN_REALTIME_API_URL = "https://car.tyemid.gov.tw/api/car/positions"
 
 class GarbageTruckAPI:
     def get_nearby_trucks(self, latitude: float, longitude: float, radius_km: float = 2.0) -> List[Dict]:
         """
-        (桃園市專用版 v2) 透過爬取網站背後的 API 來取得即時垃圾車資訊
+        (桃園市專用版 v3) 透過最新的官方 App API 來取得即時垃圾車資訊
         """
         nearby_trucks = []
         user_lat = float(latitude)
         user_lon = float(longitude)
 
         try:
-            # 這個網站的 API 不需要 SSL 驗證，直接呼叫即可
-            response = requests.get(TAOYUAN_REALTIME_API_URL, timeout=20)
+            # 這個 API 需要一個固定的 Headers 才能正確回傳資料
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            response = requests.get(TAOYUAN_REALTIME_API_URL, headers=headers, timeout=20)
             response.raise_for_status() # 確保狀態碼是 200
 
-            # API 回傳的資料格式是一個 list of dictionaries
-            all_trucks = response.json()
+            # API 回傳的資料在 'Data' 這個 key 裡面
+            all_trucks = response.json().get("Data", [])
             
             if not all_trucks or not isinstance(all_trucks, list):
-                logger.warning("Taoyuan real-time API returned no valid data.")
+                logger.warning("Taoyuan real-time API returned no valid data in 'Data' field.")
                 return []
 
             for truck in all_trucks:
                 try:
-                    # 安全地解析資料
-                    car_no = truck.get('car_no')
-                    lat = float(truck.get('lat'))
-                    lon = float(truck.get('lon'))
+                    # 安全地解析新版 API 的資料欄位
+                    car_no = truck.get('CarNo')
+                    lat = float(truck.get('Lat'))
+                    lon = float(truck.get('Lon'))
                     
-                    # 網站 API 沒有提供 "location" 和 "time"，我們先給予預設值
-                    location = truck.get('address', '即時位置更新') # 嘗試取得地址，若無則給預設
-                    time = truck.get('update_time', '') # 取得更新時間
+                    # 新版 API 直接提供了地址和時間
+                    location = truck.get('Address', '即時位置更新')
+                    time = truck.get('GpsTime', '').split(' ')[-1] # 只取 HH:MM:SS
 
                     if not all([car_no, lat, lon]):
                         continue
@@ -49,7 +52,7 @@ class GarbageTruckAPI:
                         truck_info = {
                             'car': car_no,
                             'location': location,
-                            'time': time.split(' ')[-1], # 只取時間部分
+                            'time': time,
                             'city': '桃園市',
                             'distance': round(dist_sq**0.5, 2)
                         }
@@ -68,5 +71,5 @@ class GarbageTruckAPI:
 
         # 根據距離排序
         nearby_trucks.sort(key=lambda x: x['distance'])
-        logger.info(f"Found {len(nearby_trucks)} nearby garbage trucks in Taoyuan via web API.")
+        logger.info(f"Found {len(nearby_trucks)} nearby garbage trucks in Taoyuan via latest web API.")
         return nearby_trucks
