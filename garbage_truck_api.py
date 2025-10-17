@@ -5,13 +5,12 @@ from typing import List, Dict
 logger = logging.getLogger(__name__)
 
 # --- 新北市垃圾車公開資料 API 網址 ---
-# 資料來源：新北市政府資料開放平台
 NEW_TAIPEI_API_URL = "https://data.ntpc.gov.tw/api/datasets/28AB4122-60E1-4065-98E5-AB48A68B3516/json?page=0&size=2000"
 
 class GarbageTruckAPI:
     def get_nearby_trucks(self, latitude: float, longitude: float, radius_km: float = 2.0) -> List[Dict]:
         """
-        (新北市專用版) 查詢新北市 API，並回傳指定範圍內的垃圾車
+        (新北市專用版 v2) 查詢新北市 API，並加入更強的錯誤處理
         """
         nearby_trucks = []
         user_lat = float(latitude)
@@ -21,15 +20,20 @@ class GarbageTruckAPI:
             response = requests.get(NEW_TAIPEI_API_URL, timeout=20)
             response.raise_for_status() # 確保狀態碼是 200
 
+            # 關鍵修正：在解碼 JSON 前，先檢查回應內容是否為空
+            if not response.text:
+                logger.warning("New Taipei API returned an empty response body.")
+                return []
+
             all_trucks = response.json()
             
             if not all_trucks or not isinstance(all_trucks, list):
-                logger.warning("New Taipei API returned no valid data.")
+                logger.warning("New Taipei API returned data that is not a valid list.")
                 return []
 
             for truck in all_trucks:
                 try:
-                    # 安全地解析資料 (新北市 API 的欄位名稱比較直觀)
+                    # ... (解析邏輯維持不變) ...
                     car_no = truck.get('car')
                     lat = float(truck.get('latitude'))
                     lon = float(truck.get('longitude'))
@@ -39,22 +43,21 @@ class GarbageTruckAPI:
                     if not all([car_no, location, time, lat is not None, lon is not None]):
                         continue
 
-                    # 計算距離
                     dist_sq = ((lat - user_lat) * 111)**2 + ((lon - user_lon) * 111)**2
                     if dist_sq <= radius_km**2:
                         truck_info = {
-                            'car': car_no,
-                            'location': location,
-                            'time': time,
-                            'city': '新北市', # 直接標示為新北市
-                            'distance': round(dist_sq**0.5, 2)
+                            'car': car_no, 'location': location, 'time': time,
+                            'city': '新北市', 'distance': round(dist_sq**0.5, 2)
                         }
                         nearby_trucks.append(truck_info)
                 
                 except (ValueError, TypeError, KeyError):
-                    # 任何解析錯誤都直接略過這筆不正確的資料
                     continue
         
+        # 專門捕捉 JSON 解碼錯誤
+        except requests.exceptions.JSONDecodeError:
+            logger.error(f"Failed to decode JSON from New Taipei API. The API is likely down or returning invalid data (e.g., HTML error page).")
+            return [] # 回傳空列表，讓主程式知道「找不到車」
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to connect or request from New Taipei API: {e}")
             return []
@@ -62,7 +65,6 @@ class GarbageTruckAPI:
             logger.error(f"An unexpected error occurred: {e}")
             return []
 
-        # 根據距離排序
         nearby_trucks.sort(key=lambda x: x['distance'])
         logger.info(f"Found {len(nearby_trucks)} nearby garbage trucks in New Taipei City.")
         return nearby_trucks
