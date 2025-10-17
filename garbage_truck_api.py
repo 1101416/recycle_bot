@@ -18,7 +18,7 @@ class GarbageTruckAPI:
         user_lon = float(longitude)
 
         try:
-            response = requests.get(KAOHSIUNG_API_URL, timeout=30) # 延長等待時間
+            response = requests.get(KAOHSIUNG_API_URL, timeout=60) # 延長等待時間
             response.raise_for_status() # 確保狀態碼是 200
 
             # 根據文件，資料應該包在 'data' 這個 key 裡面
