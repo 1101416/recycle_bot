@@ -4,67 +4,66 @@ from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-# --- 新北市垃圾車公開資料 API 網址 ---
-NEW_TAIPEI_API_URL = "https://data.ntpc.gov.tw/api/datasets/28AB4122-60E1-4065-98E5-AB48A68B3516/json?page=0&size=2000"
+# --- 高雄市垃圾車公開資料 API 網址 ---
+# 資料來源：高雄市政府資料開放平台
+KAOHSIUNG_API_URL = "https://api.kcg.gov.tw/api/service/Get/14fe516d-ac62-4905-9325-70daae7616bd"
 
 class GarbageTruckAPI:
     def get_nearby_trucks(self, latitude: float, longitude: float, radius_km: float = 2.0) -> List[Dict]:
         """
-        (新北市專用版 v2) 查詢新北市 API，並加入更強的錯誤處理
+        (高雄市專用版) 查詢高雄市 API，並回傳指定範圍內的垃圾車
         """
         nearby_trucks = []
         user_lat = float(latitude)
         user_lon = float(longitude)
 
         try:
-            response = requests.get(NEW_TAIPEI_API_URL, timeout=20)
+            response = requests.get(KAOHSIUNG_API_URL, timeout=20)
             response.raise_for_status() # 確保狀態碼是 200
 
-            # 關鍵修正：在解碼 JSON 前，先檢查回應內容是否為空
-            if not response.text:
-                logger.warning("New Taipei API returned an empty response body.")
-                return []
-
-            all_trucks = response.json()
+            # 高雄市 API 的資料包在 'data' 這個 key 裡面
+            all_trucks = response.json().get("data", [])
             
             if not all_trucks or not isinstance(all_trucks, list):
-                logger.warning("New Taipei API returned data that is not a valid list.")
+                logger.warning("Kaohsiung API returned no valid data in 'data' field.")
                 return []
 
             for truck in all_trucks:
                 try:
-                    # ... (解析邏輯維持不變) ...
-                    car_no = truck.get('car')
-                    lat = float(truck.get('latitude'))
-                    lon = float(truck.get('longitude'))
+                    # 安全地解析高雄市 API 的資料欄位
+                    car_no = truck.get('car_no')
+                    lat = float(truck.get('car_lat'))
+                    lon = float(truck.get('car_lon'))
                     location = truck.get('location')
-                    time = truck.get('time')
+                    time = truck.get('work_time') # 高雄 API 使用 work_time
 
                     if not all([car_no, location, time, lat is not None, lon is not None]):
                         continue
 
+                    # 計算距離
                     dist_sq = ((lat - user_lat) * 111)**2 + ((lon - user_lon) * 111)**2
                     if dist_sq <= radius_km**2:
                         truck_info = {
-                            'car': car_no, 'location': location, 'time': time,
-                            'city': '新北市', 'distance': round(dist_sq**0.5, 2)
+                            'car': car_no,
+                            'location': location,
+                            'time': time,
+                            'city': '高雄市', # 直接標示為高雄市
+                            'distance': round(dist_sq**0.5, 2)
                         }
                         nearby_trucks.append(truck_info)
                 
                 except (ValueError, TypeError, KeyError):
+                    # 任何解析錯誤都直接略過這筆不正確的資料
                     continue
         
-        # 專門捕捉 JSON 解碼錯誤
-        except requests.exceptions.JSONDecodeError:
-            logger.error(f"Failed to decode JSON from New Taipei API. The API is likely down or returning invalid data (e.g., HTML error page).")
-            return [] # 回傳空列表，讓主程式知道「找不到車」
         except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to connect or request from New Taipei API: {e}")
+            logger.error(f"Failed to connect or request from Kaohsiung API: {e}")
             return []
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
             return []
 
+        # 根據距離排序
         nearby_trucks.sort(key=lambda x: x['distance'])
-        logger.info(f"Found {len(nearby_trucks)} nearby garbage trucks in New Taipei City.")
+        logger.info(f"Found {len(nearby_trucks)} nearby garbage trucks in Kaohsiung City.")
         return nearby_trucks
