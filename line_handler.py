@@ -133,27 +133,26 @@ class LineMessageHandler:
 
     # V V V 3. 新增 handle_location_message 函式 V V V
     def handle_location_message(self, event):
-        """處理位置訊息"""
+        """處理位置訊息 (智慧時間表版)"""
         user_id = event.source.user_id
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
 
-        latitude = event.message.latitude
-        longitude = event.message.longitude
+        # 從 LINE 的位置訊息中直接取得地址文字
+        address = event.message.address
         
-        # 先回覆「正在查詢」訊息，避免 LINE 官方判定為超時無回應
+        # 先回覆「正在查詢」訊息
         self.line_bot_api.reply_message(
             event.reply_token,
             TextMessage(text=texts['location_searching'])
         )
 
         try:
-            # 呼叫 API 取得附近的垃圾車 (這一步可能會需要幾秒鐘)
-            nearby_trucks = self.garbage_truck_api.get_nearby_trucks(latitude, longitude)
+            # 呼叫新的函式，傳入地址進行查詢
+            nearby_schedules = self.garbage_truck_api.get_schedules_by_address(address)
 
-            # 因為 reply_message 只能用一次，後續的訊息改用 push_message
-            if nearby_trucks:
-                flex_message = self._create_trucks_flex_message(nearby_trucks, texts)
+            if nearby_schedules:
+                flex_message = self._create_trucks_flex_message(nearby_schedules, texts)
                 self.line_bot_api.push_message(user_id, flex_message)
             else:
                 self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_not_found']))
@@ -161,7 +160,6 @@ class LineMessageHandler:
         except Exception as e:
             logger.error(f"Error handling location message: {e}")
             self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_api_error']))
-    # ^ ^ ^ 3. 新增 handle_location_message 函式 ^ ^ ^
 
     def _send_language_menu(self, reply_token):
         carousel_template = CarouselTemplate(columns=[
@@ -182,20 +180,18 @@ class LineMessageHandler:
         stats_text += texts['stats_encourage']
         self.line_bot_api.reply_message(reply_token, TextMessage(text=stats_text))
 
-    def _create_trucks_flex_message(self, trucks: List[Dict], texts: Dict) -> FlexSendMessage:
-        """建立垃圾車資訊的 Flex Message 輪播卡片 (多縣市版)"""
+    def _create_trucks_flex_message(self, schedules: List[Dict], texts: Dict) -> FlexSendMessage:
+        """建立「清運時間表」的 Flex Message 輪播卡片"""
         bubbles = []
-        for truck in trucks[:10]: # 最多顯示 10 筆結果
+        for schedule in schedules[:10]: # 最多顯示 10 筆結果
             bubble = BubbleContainer(
                 direction='ltr',
                 body=BoxComponent(
                     layout='vertical',
                     spacing='md',
                     contents=[
-                        # 顯示車號和所屬縣市
-                        TextComponent(text=f"🚛 {truck['car']}", weight='bold', size='lg', color='#1DB446'),
-                        TextComponent(text=f"📍 {truck['city']}", size='xs', color='#AAAAAA'),
-                        TextComponent(text=truck['location'], wrap=True, size='sm', color='#555555', margin='md'),
+                        TextComponent(text=f"📍 {schedule['location']}", weight='bold', size='md', color='#1DB446', wrap=True),
+                        TextComponent(text=f"🚛 {schedule['city']} - {schedule['car']}", size='xs', color='#AAAAAA', margin='md'),
                         SeparatorComponent(margin='lg'),
                         BoxComponent(
                             layout='vertical',
@@ -205,15 +201,8 @@ class LineMessageHandler:
                                 BoxComponent(
                                     layout='baseline', spacing='sm',
                                     contents=[
-                                        TextComponent(text='時間', color='#aaaaaa', size='xs', flex=2),
-                                        TextComponent(text=truck['time'], wrap=True, color='#666666', size='sm', flex=5)
-                                    ]
-                                ),
-                                BoxComponent(
-                                    layout='baseline', spacing='sm',
-                                    contents=[
-                                        TextComponent(text='距離', color='#aaaaaa', size='xs', flex=2),
-                                        TextComponent(text=f"約 {truck['distance'] * 1000:.0f} 公尺", wrap=True, color='#666666', size='sm', flex=5)
+                                        TextComponent(text='預計時間', color='#aaaaaa', size='sm', flex=3),
+                                        TextComponent(text=schedule['time'], wrap=True, color='#666666', size='sm', flex=5, weight='bold')
                                     ]
                                 )
                             ]
@@ -224,8 +213,14 @@ class LineMessageHandler:
             bubbles.append(bubble)
 
         carousel_contents = {"type": "carousel", "contents": [bubble.as_json_dict() for bubble in bubbles]}
-        return FlexSendMessage(alt_text=texts['location_title'], contents=carousel_contents)
+        
+        # 更新 alt_text
+        alt_text = "高雄市垃圾車清運時間表" if 'location_title' not in texts else texts['location_title']
 
+        return FlexSendMessage(
+            alt_text=alt_text,
+            contents=carousel_contents
+        )
 
 
     def _create_result_flex_message(self, classification_result, waste_info, texts, user_lang):
@@ -263,6 +258,7 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
