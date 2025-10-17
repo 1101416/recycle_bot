@@ -1,130 +1,72 @@
 import requests
 import logging
-import urllib3
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-# 關閉因 SSL 憑證驗證失敗而產生的警告訊息
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# --- 六都垃圾車公開資料 API 網址庫 (2025年最終驗證版) ---
-CITY_APIS = {
-    "taipei": {
-        "name": "臺北市",
-        "url": "https://data.taipei/api/v1/dataset/a8025D87-2D99-43C6-9E2A-78E56839352F?scope=resourceAquire",
-        "parser": "taipei"
-    },
-    "new_taipei": {
-        "name": "新北市",
-        "url": "https://data.ntpc.gov.tw/api/datasets/28AB4122-60E1-4065-98E5-AB48A68B3516/json?page=0&size=2000",
-        "parser": "new_taipei"
-    },
-    "taoyuan": {
-        "name": "桃園市",
-        "url": "https://data.tycg.gov.tw/api/v1/rest/datastore/a1b4714b-fc25-4671-a533-606540c55768?limit=1000",
-        "parser": "taoyuan",
-        "verify_ssl": False # 特別標記桃園 API 需要忽略 SSL 驗證
-    },
-    "taichung": {
-        "name": "臺中市",
-        "url": "https://datacenter.taichung.gov.tw/swagger/OpenData/9188423a-1336-4b13-8822-ea1391b03361",
-        "parser": "taichung"
-    },
-    "tainan": {
-        "name": "臺南市",
-        "url": "https://data.tainan.gov.tw/api/v2/sql?query=SELECT%20%22CarNo%22,%20%22Lat%22,%20%22Lon%22,%20%22Location%22,%20%22Time%22%20FROM%20%22ebe7c03a-c85c-44c1-884c-389ce542d992%22",
-        "parser": "tainan"
-    },
-    "kaohsiung": {
-        "name": "高雄市",
-        "url": "https://data.kcg.gov.tw/api/action/datastore_search?resource_id=1999b828-a623-4c07-957e-39a7b94b42b1&limit=2000",
-        "parser": "kaohsiung"
-    }
-}
+# --- 桃園市垃圾車即時動態 API (網站背後的隱藏版 API) ---
+# 這個 API 會回傳桃園市所有正在線上作業的垃圾車即時資訊
+TAOYUAN_REALTIME_API_URL = "https://route.tyoem.gov.tw/api/get_all_car_location"
 
 class GarbageTruckAPI:
-
-    def _parse_data(self, json_data: any, parser_type: str, city_name: str) -> List[Dict]:
-        """(強固版) 根據不同縣市的 API 格式，安全地解析並標準化資料"""
-        parsed_trucks = []
-        records = []
-        key_map = {}
-
-        try:
-            # 針對不同縣市的 JSON 結構，安全地取出車輛紀錄列表
-            if parser_type == "taipei":
-                if isinstance(json_data, dict): records = json_data.get('result', {}).get('records', [])
-                key_map = {'car': 'car', 'lat': 'lat', 'lon': 'lon', 'location': 'location', 'time': 'time'}
-            elif parser_type == "new_taipei":
-                if isinstance(json_data, list): records = json_data
-                key_map = {'car': 'car', 'lat': 'latitude', 'lon': 'longitude', 'location': 'location', 'time': 'time'}
-            elif parser_type == "taoyuan":
-                if isinstance(json_data, dict): records = json_data.get('result', {}).get('records', [])
-                key_map = {'car': 'Car', 'lat': 'Lat', 'lon': 'Lon', 'location': 'Location', 'time': 'Time'}
-            elif parser_type == "taichung":
-                if isinstance(json_data, list): records = json_data
-                key_map = {'car': 'car_id', 'lat': 'lat', 'lon': 'lng', 'location': 'location', 'time': 'time'}
-            elif parser_type == "tainan":
-                if isinstance(json_data, dict): records = json_data.get('result', {}).get('records', [])
-                key_map = {'car': 'CarNo', 'lat': 'Lat', 'lon': 'Lon', 'location': 'Location', 'time': 'Time'}
-            elif parser_type == "kaohsiung":
-                if isinstance(json_data, dict): records = json_data.get('result', {}).get('records', [])
-                key_map = {'car': 'CarNo', 'lat': 'Lat', 'lon': 'Lon', 'location': 'Location', 'time': 'Time'}
-        except Exception as e:
-            logger.error(f"Error while getting records for {city_name}: {e}")
-            return []
-
-        if not records: return []
-
-        for truck in records:
-            try:
-                # 安全地取得所有資料，只要有一個欄位缺失或無法轉換，就跳過這筆
-                car = truck.get(key_map['car'])
-                lat = float(truck.get(key_map['lat']))
-                lon = float(truck.get(key_map['lon']))
-                location = truck.get(key_map['location'])
-                time = truck.get(key_map['time'])
-
-                if not all([car, location, time]): continue # lat/lon can be 0.0
-
-                parsed_trucks.append({
-                    'car': car, 'latitude': lat, 'longitude': lon,
-                    'location': location, 'time': time, 'city': city_name
-                })
-            except (ValueError, TypeError, KeyError):
-                continue # 任何解析或轉型錯誤都直接略過這筆不正確的資料
-        return parsed_trucks
-
     def get_nearby_trucks(self, latitude: float, longitude: float, radius_km: float = 2.0) -> List[Dict]:
-        """(六都版) 查詢所有支援縣市的 API，並回傳指定範圍內的垃圾車"""
-        all_nearby_trucks = []
+        """
+        (桃園市專用版 v2) 透過爬取網站背後的 API 來取得即時垃圾車資訊
+        """
+        nearby_trucks = []
         user_lat = float(latitude)
         user_lon = float(longitude)
 
-        for city_code, api_info in CITY_APIS.items():
-            try:
-                # 檢查是否需要忽略 SSL 驗證 (針對桃園)
-                verify_ssl = api_info.get("verify_ssl", True)
-                response = requests.get(api_info['url'], timeout=20, verify=verify_ssl)
-                response.raise_for_status() # 確保狀態碼是 200
-                
-                json_data = response.json()
-                city_trucks = self._parse_data(json_data, api_info['parser'], api_info['name'])
+        try:
+            # 這個網站的 API 不需要 SSL 驗證，直接呼叫即可
+            response = requests.get(TAOYUAN_REALTIME_API_URL, timeout=20)
+            response.raise_for_status() # 確保狀態碼是 200
 
-                for truck in city_trucks:
-                    dist_sq = ((truck['latitude'] - user_lat) * 111)**2 + ((truck['longitude'] - user_lon) * 111)**2
-                    if dist_sq <= radius_km**2:
-                        truck['distance'] = round(dist_sq**0.5, 2)
-                        all_nearby_trucks.append(truck)
+            # API 回傳的資料格式是一個 list of dictionaries
+            all_trucks = response.json()
             
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Failed to connect or request from {api_info['name']} API: {e}")
-            except ValueError as e: # 處理 JSON 解碼失敗
-                 logger.error(f"Failed to decode JSON from {api_info['name']} API: {e}")
-            except Exception as e:
-                logger.error(f"An unexpected error occurred for {api_info['name']}: {e}")
+            if not all_trucks or not isinstance(all_trucks, list):
+                logger.warning("Taoyuan real-time API returned no valid data.")
+                return []
+
+            for truck in all_trucks:
+                try:
+                    # 安全地解析資料
+                    car_no = truck.get('car_no')
+                    lat = float(truck.get('lat'))
+                    lon = float(truck.get('lon'))
+                    
+                    # 網站 API 沒有提供 "location" 和 "time"，我們先給予預設值
+                    location = truck.get('address', '即時位置更新') # 嘗試取得地址，若無則給預設
+                    time = truck.get('update_time', '') # 取得更新時間
+
+                    if not all([car_no, lat, lon]):
+                        continue
+
+                    # 計算距離
+                    dist_sq = ((lat - user_lat) * 111)**2 + ((lon - user_lon) * 111)**2
+                    if dist_sq <= radius_km**2:
+                        truck_info = {
+                            'car': car_no,
+                            'location': location,
+                            'time': time.split(' ')[-1], # 只取時間部分
+                            'city': '桃園市',
+                            'distance': round(dist_sq**0.5, 2)
+                        }
+                        nearby_trucks.append(truck_info)
+                
+                except (ValueError, TypeError, KeyError):
+                    # 任何解析錯誤都直接略過這筆不正確的資料
+                    continue
         
-        all_nearby_trucks.sort(key=lambda x: x['distance'])
-        logger.info(f"Found {len(all_nearby_trucks)} nearby garbage trucks from all supported cities.")
-        return all_nearby_trucks
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to connect or request from Taoyuan real-time API: {e}")
+            return [] # 發生連線錯誤時回傳空列表
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            return []
+
+        # 根據距離排序
+        nearby_trucks.sort(key=lambda x: x['distance'])
+        logger.info(f"Found {len(nearby_trucks)} nearby garbage trucks in Taoyuan via web API.")
+        return nearby_trucks
