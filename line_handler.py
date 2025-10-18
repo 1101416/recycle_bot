@@ -156,13 +156,13 @@ class LineMessageHandler:
                 flex_message = self._create_trucks_flex_message(nearby_schedules, texts)
                 self.line_bot_api.push_message(user_id, flex_message)
             else:
-                # 如果失敗或找不到，傳送包含備用連結的訊息
-                self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_api_fallback']))
-        
-        except Exception as e:
-            logger.error(f"Error handling location message: {e}")
-            self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_api_error']))
+                # 找不到資料 → 回傳「找不到」的文字
+                self.line_bot_api.push_message(user_id, TextMessage(text=texts.get('location_not_found', '抱歉，找不到附近垃圾車資訊。')))
 
+        except Exception as e:
+            logger.exception("Error handling location message")
+            self.line_bot_api.push_message(user_id, TextMessage(text=texts.get('location_api_error', '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。')))
+            
     def _send_language_menu(self, reply_token):
         carousel_template = CarouselTemplate(columns=[
             CarouselColumn(thumbnail_image_url='https://i.imgur.com/CoN90hA.png', title='繁體中文', text='選擇繁體中文介面', actions=[PostbackAction(label='選擇', data='lang_zh-TW')]),
@@ -260,6 +260,7 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
