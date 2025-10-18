@@ -1,7 +1,7 @@
 import os
 import tempfile
 from linebot.models import (
-    TextMessage, ImageMessage, LocationMessage, PostbackEvent,
+    TextMessage, TextSendMessage, ImageMessage, LocationMessage, PostbackEvent,
     TemplateSendMessage, CarouselTemplate, CarouselColumn,
     PostbackAction, MessageAction, URIAction, FlexSendMessage, BubbleContainer, BoxComponent, TextComponent,
     SeparatorComponent, IconComponent, ButtonComponent
@@ -13,8 +13,6 @@ from image_classifier import ImageClassifier
 from recycle_db import RecycleDatabase
 # 原本： from garbage_truck_api import GarbageTruckAPI
 from garbage_truck_api import NewTaipeiTruckAPI
-
-
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +59,7 @@ TEXTS = {
         'error_unrecognized': 'Sorry, I couldn\'t recognize the item in this image.\nPlease try another photo.',
         'default_reply': 'Please upload a photo for classification, or type /help to see all commands!',
         # V V V 新增位置相關文案 V V V
-        'location_title': '📍 Nearby Garbage Trucks (Kaohsiung City)', 
+        'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
         'location_searching': 'Searching for garbage trucks within 2 km of your location, please wait...',
         'location_not_found': 'Sorry, no real-time garbage truck information found within 2 km of your location.',
         'location_api_error': 'Sorry, an error occurred while fetching garbage truck information. Please try again later.'
@@ -74,8 +72,13 @@ class LineMessageHandler:
         self.line_bot_api = line_bot_api
         self.image_classifier = ImageClassifier()
         self.recycle_db = RecycleDatabase()
-        self.garbage_truck_api = NewTaipeiTruckAPI() 
-        
+        # 初始化新北市垃圾車 API
+        try:
+            self.garbage_truck_api = NewTaipeiTruckAPI()
+        except Exception:
+            logger.exception("Failed to initialize NewTaipeiTruckAPI")
+            self.garbage_truck_api = None
+
     def _get_texts(self, lang_code):
         return TEXTS.get(lang_code, TEXTS['en'])
 
@@ -114,7 +117,24 @@ class LineMessageHandler:
         try:
             message_content = self.line_bot_api.get_message_content(event.message.id)
             with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                temp_file.write(message_content.content)
+                # line-bot-sdk 的 message_content.content 可能是 bytes 或可迭代，這裡嘗試處理 bytes
+                content = getattr(message_content, "content", None) or getattr(message_content, "read", None)
+                if isinstance(content, bytes):
+                    temp_file.write(content)
+                else:
+                    # 如果 content 是 stream-like
+                    try:
+                        # 對於 Line SDK，message_content是有 .content 屬性的 bytes，若不是，嘗試呼叫 iterator
+                        for chunk in message_content.iter_content(1024):
+                            temp_file.write(chunk)
+                    except Exception:
+                        # 最後嘗試 .read()
+                        try:
+                            data = message_content.read()
+                            if data:
+                                temp_file.write(data)
+                        except Exception:
+                            pass
                 temp_file_path = temp_file.name
             try:
                 classification_result = self.image_classifier.classify_image(temp_file_path)
@@ -129,41 +149,68 @@ class LineMessageHandler:
                 else:
                     self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
             finally:
-                os.unlink(temp_file_path)
+                try:
+                    os.unlink(temp_file_path)
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
 
-    # V V V 3. 新增 handle_location_message 函式 V V V
-        def handle_location_message(self, event):
-            user_id = event.source.user_id
-            user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
-            texts = self._get_texts(user_lang)
-    
-            # 先回覆「正在查詢」
-            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['location_searching']))
-    
-            try:
-                user_lat = event.message.latitude
-                user_lng = event.message.longitude
-                address = event.message.address  # 作為 fallback 用
-    
-                # 先以經緯度做 proximity 查詢
-                nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=2000)
-    
-                # 若空，fallback 用 address 文字查詢
-                if not nearby:
+    # V V V 新增 handle_location_message 函式 V V V
+    def handle_location_message(self, event):
+        user_id = event.source.user_id
+        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
+        texts = self._get_texts(user_lang)
+
+        # 先回覆「正在查詢」
+        try:
+            self.line_bot_api.reply_message(event.reply_token, TextSendMessage(text=texts['location_searching']))
+        except Exception:
+            logger.exception("Failed to send searching reply")
+
+        try:
+            user_lat = getattr(event.message, "latitude", None)
+            user_lng = getattr(event.message, "longitude", None)
+            address = getattr(event.message, "address", "")
+
+            nearby = []
+            # 優先使用經緯度查詢（若有）
+            if user_lat is not None and user_lng is not None and self.garbage_truck_api:
+                try:
+                    nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=2000)
+                except Exception:
+                    logger.exception("Error calling get_schedules_by_location")
+
+            # 若經緯度查詢沒結果，再 fallback 用 address
+            if not nearby and address and self.garbage_truck_api:
+                try:
                     nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
-    
-                if nearby:
+                except Exception:
+                    logger.exception("Error calling get_schedules_by_address")
+
+            if nearby:
+                try:
                     flex_message = self._create_trucks_flex_message(nearby, texts)
-                    # push 或 reply（已先 reply 過 searching）
+                    # 先前已 reply searching，所以用 push
                     self.line_bot_api.push_message(user_id, flex_message)
-                else:
-                    self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found', '抱歉，找不到附近垃圾車資訊。')))
-            except Exception:
-                logger.exception("Error handling location message")
-                self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_api_error')))
+                except Exception:
+                    logger.exception("Failed to send flex message; fallback to text")
+                    brief = []
+                    for s in nearby[:5]:
+                        dist = f" ({s.get('_distance_m')}m)" if s.get('_distance_m') else ""
+                        src_note = ""
+                        if s.get('_synthetic'):
+                            src_note = "（參考資料）"
+                        elif s.get('_from_cache'):
+                            src_note = "（快取）"
+                        brief.append(f"{s.get('location')}{dist}\n{ s.get('time','') } {src_note}\n車號：{s.get('car')}")
+                    self.line_bot_api.push_message(user_id, TextSendMessage(text="找到以下垃圾車資訊：\n\n" + "\n\n".join(brief)))
+            else:
+                self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found', '抱歉，找不到附近垃圾車資訊。')))
+        except Exception:
+            logger.exception("Error handling location message")
+            self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_api_error', '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。')))
 
     def _send_language_menu(self, reply_token):
         carousel_template = CarouselTemplate(columns=[
@@ -188,6 +235,13 @@ class LineMessageHandler:
         """建立「清運時間表」的 Flex Message 輪播卡片"""
         bubbles = []
         for schedule in schedules[:10]: # 最多顯示 10 筆結果
+            # 顯示 time 並加上來源註記（如果有）
+            time_text = schedule.get('time', '')
+            if schedule.get('_synthetic'):
+                time_text = f"{time_text}\n（系統提示：此資料為快取/參考，非即時）"
+            elif schedule.get('_from_cache'):
+                time_text = f"{time_text}\n（系統提示：使用本地快取資料）"
+
             bubble = BubbleContainer(
                 direction='ltr',
                 body=BoxComponent(
@@ -195,7 +249,7 @@ class LineMessageHandler:
                     spacing='md',
                     contents=[
                         TextComponent(text=f"📍 {schedule['location']}", weight='bold', size='md', color='#1DB446', wrap=True),
-                        TextComponent(text=f"🚛 {schedule['city']} - {schedule['car']}", size='xs', color='#AAAAAA', margin='md'),
+                        TextComponent(text=f"🚛 {schedule.get('city','')} - {schedule.get('car','')}", size='xs', color='#AAAAAA', margin='md'),
                         SeparatorComponent(margin='lg'),
                         BoxComponent(
                             layout='vertical',
@@ -206,7 +260,7 @@ class LineMessageHandler:
                                     layout='baseline', spacing='sm',
                                     contents=[
                                         TextComponent(text='預計時間', color='#aaaaaa', size='sm', flex=3),
-                                        TextComponent(text=schedule['time'], wrap=True, color='#666666', size='sm', flex=5, weight='bold')
+                                        TextComponent(text=time_text, wrap=True, color='#666666', size='sm', flex=5, weight='bold')
                                     ]
                                 )
                             ]
@@ -218,8 +272,8 @@ class LineMessageHandler:
 
         carousel_contents = {"type": "carousel", "contents": [bubble.as_json_dict() for bubble in bubbles]}
         
-        # 更新 alt_text
-        alt_text = "高雄市垃圾車清運時間表" if 'location_title' not in texts else texts['location_title']
+        # 以 texts 裡的 location_title 為 alt_text；若沒有，使用預設
+        alt_text = texts.get('location_title', '垃圾車清運時間表')
 
         return FlexSendMessage(
             alt_text=alt_text,
@@ -262,15 +316,3 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
-
-
-
-
-
-
-
-
-
-
-
-
