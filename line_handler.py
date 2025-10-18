@@ -152,10 +152,12 @@ class LineMessageHandler:
             nearby_schedules = self.garbage_truck_api.get_schedules_by_address(address)
 
             if nearby_schedules:
-                flex_message = self._create_trucks_flex_message(nearby_schedules, texts)
-                self.line_bot_api.push_message(user_id, flex_message)
-            else:
-                self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_not_found']))
+            # 如果成功，傳送 Flex Message
+            flex_message = self._create_trucks_flex_message(nearby_schedules, texts)
+            self.line_bot_api.push_message(user_id, flex_message)
+        else:
+            # 如果失敗或找不到，傳送包含備用連結的訊息
+            self.line_bot_api.push_message(user_id, TextMessage(text=texts['location_api_fallback']))
         
         except Exception as e:
             logger.error(f"Error handling location message: {e}")
@@ -258,6 +260,7 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
