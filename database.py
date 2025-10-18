@@ -98,7 +98,16 @@ def insert_default_data(conn):
         ('metal', 'Wires,Copper Wiring,Small Metal Parts,Screws', 'Deliver to metal recycling facilities or resource recovery centers.', 'Remove non-metal parts where feasible to improve recyclability.', 'en'),
         ('other', 'Usable Furniture,Working Appliances,Intact Books', 'Donate or reuse via second-hand channels or community collection services.', 'Clean items and check acceptance rules before donation.', 'en'),
         ('bulky', 'Bicycle,Bike', 'Contact your local sanitation department for a scheduled pickup, or take it to a bike shop for recycling.', 'If in good condition, consider donating or selling it first.', 'en'),
+        ('food', 'Food Waste', 'Put into the compost bin.', 'Please drain excess liquid and remove packaging.', 'en'),
+        ('paper', 'Paper', 'Put into paper recycling.', 'Keep it dry and remove any non-paper items like tape.', 'en'),
+        ('plastic', 'Plastic', 'Put into plastic recycling.', 'Please rinse it first.', 'en'),
+        ('metal', 'Metal', 'Put into metal recycling.', 'Please rinse it first.', 'en'),
+        ('glass', 'Glass', 'Put into glass recycling.', 'Please rinse it first.', 'en'),
+        ('textile', 'Textile', 'Put into a clothing donation bin.', 'Clean clothes are recyclable; damaged or soiled ones are general waste.', 'en'),
+        ('ewaste', 'E-Waste', 'Take to a designated collection point or recycling vehicle.', 'Remove batteries and erase personal data before recycling.', 'en'),
+        ('hazard', 'Hazardous Waste', 'Must be handled by a specialized recycling service.', 'Do not mix with general or recyclable waste.', 'en'),
         ('bulky', 'Bulky Waste', 'Requires a scheduled pickup from your local sanitation department.', 'Do not leave it on the street.', 'en'),
+        ('other', 'Other/General Waste', 'Put into the regular trash can.', 'Items that cannot be recycled belong here.', 'en'),
     ]
 
     try:
@@ -115,4 +124,5 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with the latest user-provided expert rules!")
+
 
