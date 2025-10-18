@@ -65,7 +65,18 @@ def insert_default_data(conn):
         ('other', '餅乾袋,真空包裝,多層複合包材', '多層複合材質通常無法回收，請以一般垃圾處理或依當地指定回收方式。', '如能分離成單一材質則依材質分類回收。', 'zh-TW'),
         ('metal', '電線,銅線,金屬零件,螺絲', '清理後送至金屬回收或資源回收站，電子線材若含塑膠外皮請先分離（若可）。', '有價值金屬可尋求專業回收以提高再利用率。', 'zh-TW'),
         ('other', '可用傢俱,可用電器,書籍(完整)', '若狀態良好，建議捐贈或上傳二手平台，或交由社區資源回收中心接受。', '捐贈前請清潔並確認無重大損壞。', 'zh-TW'),
-
+        ('bulky', '自行車,腳踏車', '可聯絡當地清潔隊預約收運時間，或交由自行車行回收。', '若外觀良好且功能正常，建議優先捐贈或至二手市場交流。', 'zh-TW'),
+        ('food', '廚餘', '請投入廚餘回收桶。', '盡量瀝乾水分，並去除包裝。', 'zh-TW'),
+        ('paper', '紙類', '請投入紙類回收。', '保持乾燥，去除膠帶等雜質。', 'zh-TW'),
+        ('plastic', '塑膠類', '請投入塑膠回收。', '請先沖洗乾淨。', 'zh-TW'),
+        ('metal', '金屬類', '請投入金屬回收。', '請先沖洗乾淨。', 'zh-TW'),
+        ('glass', '玻璃類', '請投入玻璃回收。', '請先沖洗乾淨。', 'zh-TW'),
+        ('textile', '紡織品', '請投入舊衣回收箱。', '乾淨衣物可回收，破損或髒污則為一般垃圾。', 'zh-TW'),
+        ('ewaste', '電子廢棄物', '請交給資源回收車或指定回收點。', '回收前請移除電池並清除個資。', 'zh-TW'),
+        ('hazard', '有害垃圾', '需交由專門回收管道處理。', '切勿混入一般垃圾或資源回收。', 'zh-TW'),
+        ('bulky', '大型廢棄物', '需聯絡當地清潔隊預約清運。', '請勿隨意棄置。', 'zh-TW'),
+        ('other', '其他/一般垃圾', '請丟入一般垃圾桶。', '無法回收的物品皆屬此類。', 'zh-TW'),
+        
         # === English rules (en) ===
         ('food', 'Food Waste,Leftovers,Fruit Peels,Vegetable Scraps,Tea Leaves,Coffee Grounds', 'Put into the designated food waste bin or compost collection. Drain excess liquid and remove plastic packaging before disposal.', 'Do not mix with plastics, metals, glass or disposable tableware. Bones may be treated as general waste depending on local rules.', 'en'),
         ('food', 'Food Waste Bag,Compost Bin', 'Use a biodegradable or local-authority-approved food waste bag; seal before disposing into the designated collection.', 'If no food waste collection is available, dispose as regular trash and avoid leakage.', 'en'),
@@ -86,6 +97,8 @@ def insert_default_data(conn):
         ('other', 'Composite Packaging,Snack Packs,Multi-layer Foil Bags', 'Composite and multi-layer packaging is generally not recyclable; dispose as regular waste unless local separation is possible.', 'If materials can be separated into single materials, recycle accordingly.', 'en'),
         ('metal', 'Wires,Copper Wiring,Small Metal Parts,Screws', 'Deliver to metal recycling facilities or resource recovery centers.', 'Remove non-metal parts where feasible to improve recyclability.', 'en'),
         ('other', 'Usable Furniture,Working Appliances,Intact Books', 'Donate or reuse via second-hand channels or community collection services.', 'Clean items and check acceptance rules before donation.', 'en'),
+        ('bulky', 'Bicycle,Bike', 'Contact your local sanitation department for a scheduled pickup, or take it to a bike shop for recycling.', 'If in good condition, consider donating or selling it first.', 'en'),
+        ('bulky', 'Bulky Waste', 'Requires a scheduled pickup from your local sanitation department.', 'Do not leave it on the street.', 'en'),
     ]
 
     try:
@@ -102,3 +115,4 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with the latest user-provided expert rules!")
+
