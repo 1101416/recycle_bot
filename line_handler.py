@@ -11,7 +11,10 @@ from typing import List, Dict
 from config import Config
 from image_classifier import ImageClassifier
 from recycle_db import RecycleDatabase
-from garbage_truck_api import GarbageTruckAPI # <== 1. 新增匯入
+# 原本： from garbage_truck_api import GarbageTruckAPI
+from garbage_truck_api import NewTaipeiTruckAPI
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +39,12 @@ TEXTS = {
         'result_tips': '小提醒',
         'error_unrecognized': '抱歉，無法識別這張圖片中的垃圾類型。\n請確保：\n• 圖片清晰\n• 垃圾在圖片中佔主要部分\n• 光線充足\n\n請重新拍照或嘗試其他圖片。',
         'default_reply': '請上傳垃圾照片進行分類，或輸入 /help 查看完整功能！',
-        # V V V 新增位置相關文案 V V V
-        'location_title': '📍 附近垃圾車資訊 (高雄市)', 
-        'location_searching': '正在查詢您附近 2 公里內的垃圾車，請稍候...',
+
+        'location_title': '📍 附近垃圾車資訊 (新北市)',
+        'location_searching': '正在查詢您附近 2 公里內的新北市垃圾車，請稍候...',
         'location_not_found': '抱歉，目前在您附近 2 公里內找不到即時垃圾車資訊。',
         'location_api_error': '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。'
-        # ^ ^ ^ 新增位置相關文案 ^ ^ ^
+
     },
     'en': {
         'welcome_title': '🌱 AI Smart Waste Classification Assistant',
@@ -71,8 +74,8 @@ class LineMessageHandler:
         self.line_bot_api = line_bot_api
         self.image_classifier = ImageClassifier()
         self.recycle_db = RecycleDatabase()
-        self.garbage_truck_api = GarbageTruckAPI() # <== 2. 初始化 API 專家
-
+        self.garbage_truck_api = NewTaipeiTruckAPI() 
+        
     def _get_texts(self, lang_code):
         return TEXTS.get(lang_code, TEXTS['en'])
 
@@ -260,6 +263,7 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
