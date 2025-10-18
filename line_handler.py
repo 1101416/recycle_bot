@@ -135,37 +135,36 @@ class LineMessageHandler:
             self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
 
     # V V V 3. 新增 handle_location_message 函式 V V V
-    def handle_location_message(self, event):
-        """處理位置訊息 (智慧時間表版)"""
-        user_id = event.source.user_id
-        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
-        texts = self._get_texts(user_lang)
+        def handle_location_message(self, event):
+            user_id = event.source.user_id
+            user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
+            texts = self._get_texts(user_lang)
+    
+            # 先回覆「正在查詢」
+            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['location_searching']))
+    
+            try:
+                user_lat = event.message.latitude
+                user_lng = event.message.longitude
+                address = event.message.address  # 作為 fallback 用
+    
+                # 先以經緯度做 proximity 查詢
+                nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=2000)
+    
+                # 若空，fallback 用 address 文字查詢
+                if not nearby:
+                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
+    
+                if nearby:
+                    flex_message = self._create_trucks_flex_message(nearby, texts)
+                    # push 或 reply（已先 reply 過 searching）
+                    self.line_bot_api.push_message(user_id, flex_message)
+                else:
+                    self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found', '抱歉，找不到附近垃圾車資訊。')))
+            except Exception:
+                logger.exception("Error handling location message")
+                self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_api_error')))
 
-        # 從 LINE 的位置訊息中直接取得地址文字
-        address = event.message.address
-        
-        # 先回覆「正在查詢」訊息
-        self.line_bot_api.reply_message(
-            event.reply_token,
-            TextMessage(text=texts['location_searching'])
-        )
-
-        try:
-            # 呼叫新的函式，傳入地址進行查詢
-            nearby_schedules = self.garbage_truck_api.get_schedules_by_address(address)
-
-            if nearby_schedules:
-                # 如果成功，傳送 Flex Message
-                flex_message = self._create_trucks_flex_message(nearby_schedules, texts)
-                self.line_bot_api.push_message(user_id, flex_message)
-            else:
-                # 找不到資料 → 回傳「找不到」的文字
-                self.line_bot_api.push_message(user_id, TextMessage(text=texts.get('location_not_found', '抱歉，找不到附近垃圾車資訊。')))
-
-        except Exception as e:
-            logger.exception("Error handling location message")
-            self.line_bot_api.push_message(user_id, TextMessage(text=texts.get('location_api_error', '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。')))
-            
     def _send_language_menu(self, reply_token):
         carousel_template = CarouselTemplate(columns=[
             CarouselColumn(thumbnail_image_url='https://i.imgur.com/CoN90hA.png', title='繁體中文', text='選擇繁體中文介面', actions=[PostbackAction(label='選擇', data='lang_zh-TW')]),
@@ -263,6 +262,7 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
