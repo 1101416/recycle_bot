@@ -7,6 +7,7 @@ class Config:
     # LINE Bot 設定
     LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
     LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
+    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
     
     # 資料庫設定
     DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///database.db')
@@ -33,13 +34,16 @@ class Config:
     
     # 垃圾分類類別
     WASTE_CATEGORIES = {
-        'plastic': '塑膠類',
+        'food': '廚餘',
         'paper': '紙類',
+        'plastic': '塑膠類',
         'metal': '金屬類',
         'glass': '玻璃類',
-        'organic': '廚餘',
-        'battery': '電池',
-        'electronics': '電子產品',
-        'other': '其他'
+        'textile': '紡織品',
+        'ewaste': '電子廢棄物',
+        'hazard': '有害垃圾',
+        'bulky': '大型廢棄物',
+        'other': '其他/一般垃圾'
     }
+
 
