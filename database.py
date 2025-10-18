@@ -11,71 +11,81 @@ def init_database():
         with sqlite3.connect('database.db') as conn:
             cursor = conn.cursor()
             
-            # 建立表格 (此處省略，維持原樣)
+            # 建立表格 (維持原樣)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
-                    user_id TEXT PRIMARY KEY, language TEXT DEFAULT 'zh-TW', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP, eco_points INTEGER DEFAULT 0)
+                    user_id TEXT PRIMARY KEY, language TEXT, created_at TIMESTAMP,
+                    last_active TIMESTAMP, eco_points INTEGER)
             ''')
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS classifications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category TEXT, confidence REAL, image_path TEXT,
-                    is_correct BOOLEAN, feedback TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category TEXT, confidence REAL,
+                    image_path TEXT, is_correct BOOLEAN, feedback TEXT, created_at TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users (user_id))
             ''')
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS waste_info (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, name TEXT, disposal_method TEXT,
-                    tips TEXT, language TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+                    tips TEXT, language TEXT, created_at TIMESTAMP)
             ''')
             
             conn.commit()
             logger.info("Database tables created or already exist.")
             
-            # 插入或更新預設資料
+            # 插入或更新您提供的最新資料
             insert_default_data(conn)
             
     except Exception as e:
         logger.error(f"Error initializing database: {str(e)}")
         raise
 
-
-
-# ... (檔案上半部的 init_database 函式維持不變) ...
-
 def insert_default_data(conn):
-    """插入或更新專家規則 (包含多國語言與多關鍵字)"""
+    """(最新版) 插入或更新您提供的完整回收規則"""
     cursor = conn.cursor()
     
-    # 每個品項的 'name' 欄位現在可以包含用逗號分隔的多個關鍵字
+    # 使用您提供的最新回收規則
     default_waste_info = [
-        # === 繁體中文規則 ===
-        # --- 專家規則 (Specific Items) ---
-        ('other', '衛生紙,餐巾紙', '屬於一般垃圾，請直接丟入垃圾桶。', '使用過的衛生紙、餐巾紙因纖維太短且有髒污，不可回收。', 'zh-TW'),
-        ('other', '紙尿褲', '屬於一般垃圾，請妥善包覆後丟入垃圾桶。', '紙尿褲是複合材質，無法回收。', 'zh-TW'),
-        ('other', '感熱紙,電子發票,收據', '屬於一般垃圾，請直接丟入垃圾桶。', '含有化學物質無法回收。', 'zh-TW'),
-        ('other', '髒污的紙張,油污紙', '屬於一般垃圾，請直接丟入垃圾桶。', '沾有油漆、油污或寵物排泄物的紙張不可回收。', 'zh-TW'),
-        
-        ('paper', '鋁箔包,紙盒包,利樂包,豆漿,牛奶', '內容物清空並沖洗乾淨，壓扁後投入「紙容器類」回收。', '吸管及封膜屬於塑膠垃圾，請分開回收。', 'zh-TW'),
-        ('paper', '紙杯', '內容物清空並沖洗乾淨，投入「紙容器類」回收。', '杯蓋和吸管請分開回收。', 'zh-TW'),
-        ('paper', '紙餐盒', '內容物清空並簡單沖洗，去除殘渣後，投入「紙容器類」回收。', '如果油污太嚴重無法清除，請以一般垃圾丟棄。', 'zh-TW'),
+        # === 繁體中文規則 (zh-TW) ===
+        ('food', '廚餘,剩菜,剩飯,果皮,蔬菜梗,茶葉渣,咖啡渣', '請於廚餘桶或社區廚餘回收袋投入，盡量瀝乾湯汁、去除塑膠包材後丟棄。', '不可混入塑膠、金屬、玻璃或一次性餐具；肉骨頭視當地規定，部分採一般垃圾處理。', 'zh-TW'),
+        ('food', '廚餘袋,廚餘盒', '請使用可分解或社區指定之廚餘袋包裝，密封後投入廚餘回收。', '若無廚餘回收，應以一般垃圾處理並避免滲漏。', 'zh-TW'),
+        ('paper', '紙容器,利樂包,牛奶盒,豆漿盒,飲料紙盒', '內容物倒空並沖洗乾淨，壓扁後投入「紙容器類」回收。', '吸管、塑膠封膜及內襯請拆下，吸管屬塑膠回收（若能分離）。', 'zh-TW'),
+        ('paper', '報紙,書籍,筆記紙,信封,廣告單,紙箱', '請整理乾淨、去除膠帶與釘書針，分類平鋪或綑綁後投入紙類回收。', '被油污、食物殘渣污染的紙張請以一般垃圾處理。', 'zh-TW'),
+        ('plastic', '塑膠瓶,飲料瓶,塑膠容器,保麗龍餐盒(乾淨)', '沖洗乾淨並壓扁（若適用），去除瓶蓋和標籤（視當地規定）後投入塑膠回收。', '複合材質塑膠袋（餅乾袋、真空包）若無法清洗或分解則不可回收。', 'zh-TW'),
+        ('other', '塑膠袋,購物袋,保鮮膜,塑膠薄膜', '乾淨且單一材質的塑膠袋可回收（視各地回收點），但髒污或複合材質請以一般垃圾處理。', '請勿將塑膠薄膜混入紙類或其他回收物，以免污染。', 'zh-TW'),
+        ('metal', '鐵罐,鋁罐,金屬瓶蓋,金屬餐具', '清洗乾淨後投入金屬類回收桶，體積較大者視當地資源回收處理。', '含危險物或油污的金屬（如油桶）需依特殊回收或一般廢棄物處理。', 'zh-TW'),
+        ('glass', '玻璃瓶,玻璃容器,酒瓶,醬油瓶', '清洗乾淨並投入玻璃類回收桶，破損玻璃請以報紙包好再丟棄。', '燒杯、鏡子、玻璃燈罩等特殊玻璃因成分不同可能無法回收，請查當地規定。', 'zh-TW'),
+        ('textile', '衣物,被單,毛巾,布料,鞋子(可回收)', '若仍可使用請捐贈或放入指定回收箱；無法使用者請依大型廢棄物或燃燒類規定處理。', '有污漬或潮濕易發霉的衣物先清理再決定回收或丟棄。', 'zh-TW'),
+        ('ewaste', '電池,手機,電腦,家電,充電器,電視,冰箱', '小型電池請投入回收箱或專門電池回收桶；電器請送至家電回收點或依大型廢棄物程序處理。', '含汞、鋰電池等屬有害回收範疇，切勿與一般垃圾混放。', 'zh-TW'),
+        ('hazard', '電池(鋰電,鹼性),節能燈管,溶劑,油漆,藥品(過期),化學品', '請送到指定的有害廢棄物回收站或由特定回收活動回收，勿直接丟入一般垃圾。', '電池若可能短路請先以膠帶貼住極端；藥品請至藥局或衛生單位回收。', 'zh-TW'),
+        ('bulky', '家具,床墊,大型家電,沙發', '依當地大型廢棄物回收規定預約清運或送至指定回收處理中心，並繳交必要費用（若有）。', '可考慮回收再利用或捐贈可用物品以減少資源浪費。', 'zh-TW'),
+        ('other', '食用油,廚房油脂', '待油液冷卻後以密封容器回收或送至資源回收點，避免倒入水槽造成下水道阻塞。', '少量油可以紙巾吸乾後以一般垃圾處理，但大量廚房油應回收再利用。', 'zh-TW'),
+        ('other', '保麗龍,發泡材料,泡綿', '若乾淨且分隔單一材質，部分回收站可回收；否則以一般垃圾或依當地規定回收。', '帶有食物殘渣或油污的保麗龍不可回收。', 'zh-TW'),
+        ('other', '不可回收,混合垃圾,髒污物,衛生紙,紙尿褲,棉花棒', '請以一般垃圾袋妥善包裝後丟棄，特殊臭味或滲漏請密封處理。', '衛生紙、紙尿褲與被嚴重污染的紙類屬一般垃圾。', 'zh-TW'),
+        ('hazard', '針頭,醫療廢棄物,血液污染物', '請按醫療廢棄物規定處理，針頭需放入硬殼容器並交由醫療機構或合約廢棄物處理業者處理。', '切勿直接丟入一般垃圾以免造成他人傷害或感染風險。', 'zh-TW'),
+        ('other', '餅乾袋,真空包裝,多層複合包材', '多層複合材質通常無法回收，請以一般垃圾處理或依當地指定回收方式。', '如能分離成單一材質則依材質分類回收。', 'zh-TW'),
+        ('metal', '電線,銅線,金屬零件,螺絲', '清理後送至金屬回收或資源回收站，電子線材若含塑膠外皮請先分離（若可）。', '有價值金屬可尋求專業回收以提高再利用率。', 'zh-TW'),
+        ('other', '可用傢俱,可用電器,書籍(完整)', '若狀態良好，建議捐贈或上傳二手平台，或交由社區資源回收中心接受。', '捐贈前請清潔並確認無重大損壞。', 'zh-TW'),
 
-        # --- 通用規則 (General Categories) ---
-        ('plastic', '塑膠類', '清洗乾淨後投入塑膠類回收桶。', '乾淨的塑膠袋可以回收，但髒污的複合材質塑膠袋(如餅乾袋)不行。', 'zh-TW'),
-        ('paper', '紙類', '整理乾淨、去除膠帶釘書針後，投入紙類回收桶。', '此類別指的是一般紙張，非紙容器。請保持乾燥。', 'zh-TW'),
-        ('metal', '金屬類', '清洗乾淨後，投入金屬類回收桶。', '尖銳邊緣請小心處理，以免割傷。', 'zh-TW'),
-        ('glass', '玻璃類', '清洗乾淨後投入玻璃類回收桶。', '小心破碎，建議用報紙包好再回收。', 'zh-TW'),
-        ('other', '其他', '屬於一般垃圾，請直接丟入垃圾桶。', '無法回收或規則未提及的物品皆屬此類。', 'zh-TW'),
-
-        # === 英文規則 ===
-        ('other', 'Tissue Paper,Napkin', 'This is general waste. Please throw it in the regular trash can.', 'Used tissues and napkins are not recyclable due to short fibers and contamination.', 'en'),
-        ('paper', 'Tetra Pak,Beverage Carton,Soya Milk,Milk Carton', 'Empty and rinse the container, then flatten it and put it in the "Paper Container" recycling bin.', 'Straws and plastic films should be recycled as plastic.', 'en'),
-        ('paper', 'Paper Meal Box', 'Empty and briefly rinse to remove food residue, then put it in the "Paper Container" recycling bin.', 'If heavily soiled with grease, dispose of as general waste.', 'en'),
-        ('plastic', 'Plastic', 'Rinse clean and place in the plastic recycling bin.', 'Clean plastic bags are recyclable, but dirty composite bags (like snack bags) are not.', 'en'),
-        ('paper', 'Paper', 'Tidy up, remove tapes and staples, then place in the paper recycling bin.', 'This refers to general paper, not paper containers. Keep it dry.', 'en'),
-        ('metal', 'Metal', 'Rinse clean and place in the metal recycling bin.', 'Be careful with sharp edges.', 'en'),
-        ('glass', 'Glass', 'Rinse clean and place in the glass recycling bin.', 'Handle with care. It is recommended to wrap broken glass in newspaper.', 'en'),
-        ('other', 'Other', 'This is general waste. Please throw it in the regular trash can.', 'Items that cannot be recycled or are not mentioned in the rules belong here.', 'en'),
+        # === English rules (en) ===
+        ('food', 'Food Waste,Leftovers,Fruit Peels,Vegetable Scraps,Tea Leaves,Coffee Grounds', 'Put into the designated food waste bin or compost collection. Drain excess liquid and remove plastic packaging before disposal.', 'Do not mix with plastics, metals, glass or disposable tableware. Bones may be treated as general waste depending on local rules.', 'en'),
+        ('food', 'Food Waste Bag,Compost Bin', 'Use a biodegradable or local-authority-approved food waste bag; seal before disposing into the designated collection.', 'If no food waste collection is available, dispose as regular trash and avoid leakage.', 'en'),
+        ('paper', 'Tetra Pak,Beverage Carton,Milk Carton,Soya Milk Carton', 'Empty and rinse, flatten, then put into the paper-container recycling bin.', 'Remove straws and plastic films; straws/films should be recycled as plastic if separable.', 'en'),
+        ('paper', 'Newspaper,Books,Office Paper,Envelopes,Brochures,Cardboard', 'Flatten and bundle; remove tape and staples before putting into the paper recycling bin.', 'Do not include heavily soiled or grease-stained paper.', 'en'),
+        ('plastic', 'Plastic Bottles,Plastic Containers,Plastic Packaging(Clean)', 'Rinse clean and, when appropriate, flatten bottles. Remove lids if required by local guidelines and place in plastic recycling.', 'Composite snack/food bags are usually not recyclable. Check local rules for film/plastic bag collection.', 'en'),
+        ('other', 'Plastic Bags,Film Packaging,Cling Film', 'Clean and dry single-material plastic bags may be recycled at designated drop-off points; dirty or multi-layer packaging should be disposed as general waste.', 'Do not mix plastic film with paper recycling to avoid contamination.', 'en'),
+        ('metal', 'Metal Cans,Aluminum Cans,Metal Lids,Metal Utensils', 'Rinse and place into the metal recycling bin. Sharp edges should be handled carefully.', 'Large oily containers may need special handling and cannot be recycled through standard streams.', 'en'),
+        ('glass', 'Glass Bottles,Glass Jars,Wine Bottles,Sauce Jars', 'Rinse and put into the glass recycling bin. Wrap broken glass in newspaper before disposal.', 'Specialty glass (tempered, mirror glass) may not be accepted in regular glass recycling.', 'en'),
+        ('textile', 'Clothes,Bedding,Towels,Shoes', 'Donate usable items or place in textile collection bins. Heavily soiled or wet textiles may need to be disposed as general waste.', 'Repair or upcycle if possible to extend useful life.', 'en'),
+        ('ewaste', 'Batteries,Mobile Phones,Computers,Chargers,TVs,Refrigerators', 'Take small batteries to battery recycling bins; bring electronics to designated e-waste drop-off or collection events for safe recycling.', 'Lithium batteries and items containing hazardous substances must not be placed in general trash.', 'en'),
+        ('hazard', 'Batteries(Alkaline,Lithium),Fluorescent Tubes,Paints,Solvents,Expired Medicine,Chemicals', 'Deliver to hazardous waste collection centers or scheduled hazardous waste events; do not throw into regular bins.', 'Tape battery terminals to prevent short-circuiting; consult local guidelines for pharmaceutical disposal.', 'en'),
+        ('bulky', 'Furniture,Mattresses,Large Appliances,Sofa', 'Arrange pickup or drop-off according to local bulky waste procedures, which may include scheduling and fees.', 'Consider donation or reuse programs for items in good condition.', 'en'),
+        ('other', 'Cooking Oil,Used Cooking Oil', 'Allow to cool and collect in a sealed container; bring to used oil recycling points. Do not pour down the drain.', 'Small amounts may be absorbed with paper and disposed as general waste if local regulations permit.', 'en'),
+        ('other', 'Polystyrene,Styrofoam,Expanded Polystyrene', 'If clean and accepted locally, bring to specific recycling points; otherwise dispose as general waste.', 'Food-contaminated foam cannot be recycled.', 'en'),
+        ('other', 'Non-Recyclable,Contaminated Waste,Soiled Paper,Tissue,Diapers,Cotton Swabs', 'Place in the regular trash. Seal if smelly or moist to prevent leakage.', 'Used tissues, diapers and heavily contaminated paper should be treated as general waste.', 'en'),
+        ('hazard', 'Needles,Syringes,Medical Waste,Blood-Contaminated Materials', 'Follow medical waste disposal rules: place sharps in rigid containers and return to medical facilities or authorized handlers.', 'Do not dispose sharps in household trash to avoid risk of injury and infection.', 'en'),
+        ('other', 'Composite Packaging,Snack Packs,Multi-layer Foil Bags', 'Composite and multi-layer packaging is generally not recyclable; dispose as regular waste unless local separation is possible.', 'If materials can be separated into single materials, recycle accordingly.', 'en'),
+        ('metal', 'Wires,Copper Wiring,Small Metal Parts,Screws', 'Deliver to metal recycling facilities or resource recovery centers.', 'Remove non-metal parts where feasible to improve recyclability.', 'en'),
+        ('other', 'Usable Furniture,Working Appliances,Intact Books', 'Donate or reuse via second-hand channels or community collection services.', 'Clean items and check acceptance rules before donation.', 'en'),
     ]
 
     try:
@@ -84,15 +94,11 @@ def insert_default_data(conn):
         logger.info("Cleared all old default data.")
         cursor.executemany('INSERT INTO waste_info (category, name, disposal_method, tips, language) VALUES (?, ?, ?, ?, ?)', default_waste_info)
         conn.commit()
-        logger.info(f"Inserted or updated {cursor.rowcount} expert rules for all languages.")
+        logger.info(f"Inserted or updated {cursor.rowcount} new expert rules.")
     except Exception as e:
         logger.error(f"Error inserting default data: {e}")
         raise
 
-# ... (檔案下半部的 if __name__ == "__main__": 維持不變) ...
-
 if __name__ == "__main__":
     init_database()
-    print("Database initialized successfully with updated expert and general rules!")
-
-
+    print("Database initialized successfully with the latest user-provided expert rules!")
