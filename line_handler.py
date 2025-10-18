@@ -296,10 +296,6 @@ class LineMessageHandler:
                     TextComponent(text=f"📂 {texts['result_category']}:", size='sm', color='#555555', flex=4),
                     TextComponent(text=category_display_text, size='sm', color='#111111', align='end', flex=6)
                 ]),
-                BoxComponent(layout='horizontal', contents=[
-                    TextComponent(text=f"🎯 {texts['result_confidence']}:", size='sm', color='#555555', flex=4),
-                    TextComponent(text=f"{classification_result['confidence']:.0%}", size='sm', color='#111111', align='end', flex=6)
-                ]),
                 SeparatorComponent(margin='md'),
                 BoxComponent(layout='vertical', margin='lg', contents=[
                     TextComponent(text=f"♻️ {texts['result_method']}", weight='bold', size='md', margin='sm'),
@@ -316,3 +312,4 @@ class LineMessageHandler:
     def _send_classification_result(self, reply_token, classification_result, waste_info, texts, user_lang):
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
