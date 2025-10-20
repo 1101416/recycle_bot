@@ -67,6 +67,7 @@ def insert_default_data(conn):
         ('other', '髒污的塑膠袋,內層有錫箔或鋁箔的塑膠袋,茶包,餅乾袋', '此類複合材質或髒污的塑膠袋無法回收，請以一般垃圾處理。', '判斷標準是袋子內層是否為銀色或有其他材質。', 'zh-TW'),
 
         # --- 玻璃類 (Glass) ---
+        ('glass', '香水,香水瓶', '需將「內容物」與「空瓶」分開處理。 1. 內容物處理：將香水液體用廢布或紙巾吸收，待揮發後丟入「一般垃圾」。 2. 空瓶回收：將清洗乾淨的空瓶依照瓶身材質（多為玻璃）進行回收。', '重點：切勿將香水液體直接倒入水槽或馬桶！若為噴霧罐，請在戶外通風處將內容物完全排空，再依「金屬類」回收。', 'zh-TW'),
         ('glass', '玻璃容器,玻璃瓶,酒瓶,玻璃盤,玻璃杯,玻璃碗,玻璃燭臺,門窗玻璃,魚缸', '去除瓶蓋、吸管，倒空內容物並略為沖洗後回收。', '破損玻璃請用紙箱或報紙包好，並註明「碎玻璃」，保護清潔人員。', 'zh-TW'),
         ('other', '隔熱玻璃,汽車擋風玻璃,防火玻璃,玻璃墊,燈具,鏡子', '因材質成分不同，不可與一般玻璃混合回收，請以一般垃圾處理或洽詢清潔隊。', '這些是強化或特殊處理過的玻璃。', 'zh-TW'),
 
@@ -137,6 +138,7 @@ def insert_default_data(conn):
         ('other', 'Dirty plastic bags, plastic bags with an inner foil layer, tea bags, snack bags', 'These types of composite or dirty plastic bags are not recyclable. Please dispose of them as general waste.', 'The criteria is whether the inner layer of the bag is silver or made of another material.', 'en'),
 
         # --- Glass ---
+        ('glass', 'Perfume, Perfume Bottle', 'The "contents" and "empty bottle" must be handled separately. 1. Contents Disposal: Absorb the liquid with a cloth or paper towel. After it evaporates, throw the absorbent material into "General Waste". 2. Bottle Recycling: Recycle the clean, empty bottle based on its material (usually glass).', 'IMPORTANT: Do not pour liquid perfume down the sink or toilet. For aerosol cans, ensure they are completely empty in a ventilated area before recycling as "Metal".', 'en'),
         ('glass', 'Glass containers, glass bottles, wine bottles, glass plates, glass cups, glass bowls, glass candlesticks, window glass, fish tanks', 'Remove lids and straws, empty the contents, and rinse lightly before recycling.', 'Please wrap broken glass in a cardboard box or newspaper and label it as "broken glass" to protect cleaning personnel.', 'en'),
         ('other', 'Insulated glass, car windshields, fireproof glass, glass mats, lighting fixtures, mirrors', 'Due to different material compositions, these cannot be recycled with regular glass. Please dispose of them as general waste or consult the cleaning crew.', 'These are tempered or specially treated glass.', 'en'),
 
@@ -200,6 +202,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with the latest user-provided expert rules!")
+
 
 
 
