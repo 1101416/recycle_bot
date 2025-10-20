@@ -46,68 +46,116 @@ def insert_default_data(conn):
     # 使用您提供的最新回收規則
     default_waste_info = [
         # === 繁體中文規則 (zh-TW) ===
-        ('food', '廚餘,剩菜,剩飯,果皮,蔬菜梗,茶葉渣,咖啡渣', '請於廚餘桶或社區廚餘回收袋投入，盡量瀝乾湯汁、去除塑膠包材後丟棄。', '不可混入塑膠、金屬、玻璃或一次性餐具；肉骨頭視當地規定，部分採一般垃圾處理。', 'zh-TW'),
-        ('food', '廚餘袋,廚餘盒', '請使用可分解或社區指定之廚餘袋包裝，密封後投入廚餘回收。', '若無廚餘回收，應以一般垃圾處理並避免滲漏。', 'zh-TW'),
-        ('paper', '紙容器,利樂包,牛奶盒,豆漿盒,飲料紙盒', '內容物倒空並沖洗乾淨，壓扁後投入「紙容器類」回收。', '吸管、塑膠封膜及內襯請拆下，吸管屬塑膠回收（若能分離）。', 'zh-TW'),
-        ('paper', '報紙,書籍,筆記紙,信封,廣告單,紙箱', '請整理乾淨、去除膠帶與釘書針，分類平鋪或綑綁後投入紙類回收。', '被油污、食物殘渣污染的紙張請以一般垃圾處理。', 'zh-TW'),
-        ('plastic', '塑膠瓶,飲料瓶,塑膠容器,保麗龍餐盒(乾淨)', '沖洗乾淨並壓扁（若適用），去除瓶蓋和標籤（視當地規定）後投入塑膠回收。', '複合材質塑膠袋（餅乾袋、真空包）若無法清洗或分解則不可回收。', 'zh-TW'),
-        ('other', '塑膠袋,購物袋,保鮮膜,塑膠薄膜', '乾淨且單一材質的塑膠袋可回收（視各地回收點），但髒污或複合材質請以一般垃圾處理。', '請勿將塑膠薄膜混入紙類或其他回收物，以免污染。', 'zh-TW'),
-        ('metal', '鐵罐,鋁罐,金屬瓶蓋,金屬餐具', '清洗乾淨後投入金屬類回收桶，體積較大者視當地資源回收處理。', '含危險物或油污的金屬（如油桶）需依特殊回收或一般廢棄物處理。', 'zh-TW'),
-        ('glass', '玻璃瓶,玻璃容器,酒瓶,醬油瓶', '清洗乾淨並投入玻璃類回收桶，破損玻璃請以報紙包好再丟棄。', '燒杯、鏡子、玻璃燈罩等特殊玻璃因成分不同可能無法回收，請查當地規定。', 'zh-TW'),
-        ('textile', '衣物,被單,毛巾,布料,鞋子(可回收)', '若仍可使用請捐贈或放入指定回收箱；無法使用者請依大型廢棄物或燃燒類規定處理。', '有污漬或潮濕易發霉的衣物先清理再決定回收或丟棄。', 'zh-TW'),
-        ('ewaste', '電池,手機,電腦,家電,充電器,電視,冰箱', '小型電池請投入回收箱或專門電池回收桶；電器請送至家電回收點或依大型廢棄物程序處理。', '含汞、鋰電池等屬有害回收範疇，切勿與一般垃圾混放。', 'zh-TW'),
-        ('hazard', '電池(鋰電,鹼性),節能燈管,溶劑,油漆,藥品(過期),化學品', '請送到指定的有害廢棄物回收站或由特定回收活動回收，勿直接丟入一般垃圾。', '電池若可能短路請先以膠帶貼住極端；藥品請至藥局或衛生單位回收。', 'zh-TW'),
-        ('bulky', '家具,床墊,大型家電,沙發', '依當地大型廢棄物回收規定預約清運或送至指定回收處理中心，並繳交必要費用（若有）。', '可考慮回收再利用或捐贈可用物品以減少資源浪費。', 'zh-TW'),
-        ('other', '食用油,廚房油脂', '待油液冷卻後以密封容器回收或送至資源回收點，避免倒入水槽造成下水道阻塞。', '少量油可以紙巾吸乾後以一般垃圾處理，但大量廚房油應回收再利用。', 'zh-TW'),
-        ('other', '保麗龍,發泡材料,泡綿', '若乾淨且分隔單一材質，部分回收站可回收；否則以一般垃圾或依當地規定回收。', '帶有食物殘渣或油污的保麗龍不可回收。', 'zh-TW'),
-        ('other', '不可回收,混合垃圾,髒污物,衛生紙,紙尿褲,棉花棒', '請以一般垃圾袋妥善包裝後丟棄，特殊臭味或滲漏請密封處理。', '衛生紙、紙尿褲與被嚴重污染的紙類屬一般垃圾。', 'zh-TW'),
-        ('hazard', '針頭,醫療廢棄物,血液污染物', '請按醫療廢棄物規定處理，針頭需放入硬殼容器並交由醫療機構或合約廢棄物處理業者處理。', '切勿直接丟入一般垃圾以免造成他人傷害或感染風險。', 'zh-TW'),
-        ('other', '餅乾袋,真空包裝,多層複合包材', '多層複合材質通常無法回收，請以一般垃圾處理或依當地指定回收方式。', '如能分離成單一材質則依材質分類回收。', 'zh-TW'),
-        ('metal', '電線,銅線,金屬零件,螺絲', '清理後送至金屬回收或資源回收站，電子線材若含塑膠外皮請先分離（若可）。', '有價值金屬可尋求專業回收以提高再利用率。', 'zh-TW'),
-        ('other', '可用傢俱,可用電器,書籍(完整)', '若狀態良好，建議捐贈或上傳二手平台，或交由社區資源回收中心接受。', '捐贈前請清潔並確認無重大損壞。', 'zh-TW'),
-        ('bulky', '自行車,腳踏車', '可聯絡當地清潔隊預約收運時間，或交由自行車行回收。', '若外觀良好且功能正常，建議優先捐贈或至二手市場交流。', 'zh-TW'),
-        ('food', '廚餘', '請投入廚餘回收桶。', '盡量瀝乾水分，並去除包裝。', 'zh-TW'),
-        ('paper', '紙類', '請投入紙類回收。', '保持乾燥，去除膠帶等雜質。', 'zh-TW'),
-        ('plastic', '塑膠類', '請投入塑膠回收。', '請先沖洗乾淨。', 'zh-TW'),
-        ('metal', '金屬類', '請投入金屬回收。', '請先沖洗乾淨。', 'zh-TW'),
-        ('glass', '玻璃類', '請投入玻璃回收。', '請先沖洗乾淨。', 'zh-TW'),
-        ('textile', '紡織品', '請投入舊衣回收箱。', '乾淨衣物可回收，破損或髒污則為一般垃圾。', 'zh-TW'),
-        ('ewaste', '電子廢棄物', '請交給資源回收車或指定回收點。', '回收前請移除電池並清除個資。', 'zh-TW'),
-        ('hazard', '有害垃圾', '需交由專門回收管道處理。', '切勿混入一般垃圾或資源回收。', 'zh-TW'),
-        ('bulky', '大型廢棄物', '需聯絡當地清潔隊預約清運。', '請勿隨意棄置。', 'zh-TW'),
-        ('other', '其他/一般垃圾', '請丟入一般垃圾桶。', '無法回收的物品皆屬此類。', 'zh-TW'),
+
+        # --- 紙類 (Paper) ---
+        ('paper', '雜誌,影印紙,包裝紙,紙製茶葉罐,便條紙,日曆,紙袋,再生紙,報紙,電腦報表紙,宣傳單,衛生紙滾筒,電話簿,月曆,紙箱,瓦楞紙,書籍,購物紙袋,信封,名片,筆記本,水果套袋', '請先行除去塑膠封面、膠帶、線圈、釘書針等非紙類物品後，攤平打包集中回收。', '水果套袋請先除去綁繩、樹枝、膠帶等。 [cite: 2]', 'zh-TW'),
+        ('paper', '紙容器,鋁箔包,新鮮屋,利樂皇,紙餐具,紙杯,紙碗,紙餐盤,紙餐盒', '內容物倒空，稍微擦拭或沖洗，壓扁後回收。', '紙盒包或鋁箔包要先將吸管去除再壓扁。 [cite: 2]', 'zh-TW'),
+        ('other', '紙尿褲,紙尿片,衛生紙,衛生棉,複寫紙,蠟紙,離型紙,貼紙底襯,轉印紙,感熱紙,電子發票,砂紙,塑膠光面紙,髒污的紙張,炮竹類紙屑', '這些皆為不可回收的複合材質或髒污紙張，請打包後交給垃圾車。', '感熱紙(如電子發票)含有化學物質，不可回收。 [cite: 2]', 'zh-TW'),
+
+        # --- 金屬類 (Metal) ---
+        ('metal', '鐵容器,鐵罐,鐵窗,鐵板,鐵棍,鐵籠,鐵箱,鐵欄杆,鐵製鉛筆盒,鐵門,鐵架,鐵棒,鐵鉤,鐵桶,鐵條,鐵鐘,鐵器,鐵鍋,鐵櫃,鐵絲,圖釘,鐵釘,鐵碗,鐵塊,鐵鍊,鐵皮,鐵杯,鐵盆,鐵鎚頭,菜刀刀身,雨傘骨架,鐵製餅乾盒,鋼筋', '請先倒空內容物，用水略為沖洗後回收。', '雨傘布、坐墊等複合材質需拆除，只回收骨架。 [cite: 2]', 'zh-TW'),
+        ('metal', '鋁容器,鋁罐,鋁鍋,鋁盆,鋁門窗外框,鋁合金鋼圈', '請先倒空內容物，用水略為沖洗，壓扁後回收。', '保持乾燥與潔淨。 [cite: 10]', 'zh-TW'),
+        ('metal', '包覆銅線電線,不銹鋼製品,金屬釘書機,金屬製菜籃,金屬剪刀,金屬湯匙,叉子,鑰匙,門鎖,金屬製衣架,銅製品,不銹鋼瓦斯爐,鋼圈', '直接交付資源回收車即可。', '電線外層的塑膠皮不需特別剝除。 [cite: 10]', 'zh-TW'),
+        ('hazard', '氣體鋼瓶,滅火器,瓦斯鋼瓶', '應交由原販賣業者逆向回收，或洽詢瓦斯行、檢驗場處理。', '這些是壓力容器，切勿自行處理或直接交給清潔隊，以免發生危險。 [cite: 2]', 'zh-TW'),
+        ('other', '保險絲,電話線,網路線', '此類物品目前無法有效回收，請以一般垃圾處理。', '雖然內含金屬，但因雜質過多、處理成本高，不在回收範圍內。 [cite: 10]', 'zh-TW'),
+
+        # --- 塑膠類 (Plastic) ---
+        ('plastic', '塑膠容器,PET瓶,PVC瓶,PP杯,PE瓶,PS瓶,養樂多瓶,塑膠盒,塑膠盆,塑膠桌椅,光碟片,塑膠製資料夾,保鮮盒,塑膠臉盆,塑膠花盆,壓克力,包裝封膜,塑膠管,膠水瓶,塑膠菜籃,塑膠製衣架,塑膠水桶,安全帽,錄影帶,錄音帶,塑膠玩具,塑膠類免洗餐具,保麗龍餐具,生鮮托盤', '請先倒空內容物，用水略為沖洗後回收。', '乾淨的保麗龍餐具或生鮮托盤是可以回收的。 [cite: 10]', 'zh-TW'),
+        ('plastic', '乾淨的塑膠袋', '請將袋內垃圾倒乾淨，打結後集中成一包交付回收。', '只回收乾淨的、單純的塑膠袋。 ', 'zh-TW'),
+        ('plastic', '乾淨的包裝用保麗龍,漁貨箱,冰品盒,蛋糕盒,電子電器包裝材', '請先去除內容物、膠帶、木材、鐵釘等，並沖洗乾淨。', '建築工程用的施工保麗龍不可回收。 ', 'zh-TW'),
+        ('other', '塑膠膜,化學纖維物品,塑膠布,樹脂,安全座椅,護貝膠膜,腳踏墊,保鮮膜,墊子,泡棉,旅行袋,膠帶,雨衣,原子筆,吸管,飼料袋,唱片,刷子,底片,板擦,塑膠鉛筆盒,筷子,牙籤,牙線,橡膠製品', '這些皆為不可回收的複合材質或體積過小物品，請以一般垃圾處理。', '廢輪胎除外，需另外回收。 [cite: 10]', 'zh-TW'),
+        ('other', '髒污的塑膠袋,內層有錫箔或鋁箔的塑膠袋,茶包,餅乾袋', '此類複合材質或髒污的塑膠袋無法回收，請以一般垃圾處理。', '判斷標準是袋子內層是否為銀色或有其他材質。 ', 'zh-TW'),
+
+        # --- 玻璃類 (Glass) ---
+        ('glass', '玻璃容器,玻璃瓶,酒瓶,玻璃盤,玻璃杯,玻璃碗,玻璃燭臺,門窗玻璃,魚缸', '去除瓶蓋、吸管，倒空內容物並略為沖洗後回收。', '破損玻璃請用紙箱或報紙包好，並註明「碎玻璃」，保護清潔人員。 ', 'zh-TW'),
+        ('other', '隔熱玻璃,汽車擋風玻璃,防火玻璃,玻璃墊,燈具,鏡子', '因材質成分不同，不可與一般玻璃混合回收，請以一般垃圾處理或洽詢清潔隊。', '這些是強化或特殊處理過的玻璃。 ', 'zh-TW'),
+
+        # --- 紡織品 (Textile) ---
+        ('textile', '舊衣,上衣,褲子,裙子,洋裝,外套,西裝', '以可穿著為主，清洗乾淨後打包成袋，交給回收車或舊衣回收箱。', '貼身衣物因衛生考量不回收。衣物需乾淨無破損、黃斑或異味。 [cite: 18]', 'zh-TW'),
+        ('other', '枕頭,棉被,床單,地毯,襪子,鞋類,皮衣,貼身衣物,絨毛玩具,窗簾,毛線,皮帶,包包,帽子,抹布', '這些物品因衛生、材質或破損等因素無法回收，請以一般垃圾處理。', '外觀良好且功能未喪失的鞋子、包包、絨毛玩具可考慮至二手市場交流。 [cite: 18]', 'zh-TW'),
+
+        # --- 電子廢棄物 (E-waste) ---
+        ('ewaste', '大型家電,電視機,電冰箱,洗衣機,冷暖氣機,影印機,音響,抽油煙機', '可交由經銷商逆向回收，或電洽清潔隊約定收運時間。', '回收前請盡量清空內部物品。 [cite: 15]', 'zh-TW'),
+        ('ewaste', '小型家電,行動電話,電熱水瓶,電磁爐,脫水機,電鍋,飲水機,微波爐,烘乾機,吹風機,烤箱,電風扇,電暖爐,烘碗機,咖啡機,收錄音機,傳真機,影音光碟機,錄放影機,充電器', '直接交付資源回收車即可。', '回收前請移除電池並清除個資。 [cite: 15]', 'zh-TW'),
+        ('ewaste', '資訊物品,筆記型電腦,監視器,螢幕,主機板,硬式磁碟機,電源供應器,機殼,印表機,不斷電系統主機,鍵盤,平板電腦,外接硬碟,行動電源', '可交給資源回收車或送至資訊商品販賣業者逆向回收。', '電腦零件、滑鼠、滑鼠墊等周邊不可回收。 [cite: 18]', 'zh-TW'),
+        ('ewaste', '光碟片,CD,VCD,DVD', '請收集後裝成一袋交付回收。', '不含外殼，外殼若為塑膠材質可另行回收。 [cite: 18]', 'zh-TW'),
+
+        # --- 有害垃圾 (Hazardous) ---
+        ('hazard', '廢電池,水銀電池,鹼性電池,鋰電池,鎳鎘電池,充電電池,鈕扣型電池,鉛蓄電池', '交給資源回收車，或連鎖超商、量販店等販賣業者逆向回收。', '車用鉛蓄電池可交由汽機車行或保修廠回收。 [cite: 18]', 'zh-TW'),
+        ('hazard', '照明光源,日光燈,環管日光燈,燈泡,冷陰極燈', '可先用紙套裝好，不要打破，交給資源回收車或照明光源販賣業者回收。', '燈帽直徑2.6公分以下的傳統燈泡不可回收。 [cite: 21]', 'zh-TW'),
+        ('hazard', '水銀體溫計', '請使用原包裝盒打包好，特別交付給資源回收車隨車人員。', '不包含實驗室用的溫度計。 [cite: 21]', 'zh-TW'),
+        ('hazard', '廢農藥容器', '請至少清洗三次，並將清洗液重複噴灑利用，清除內容物後打包回收。', '可送交農會設置的回收點或資源回收車。 [cite: 21]', 'zh-TW'),
+
+        # --- 大型廢棄物 (Bulky) ---
+        ('bulky', '廢機動車輛,汽車,機車', '洽詢合法的廢車回收商進行報廢處理，可獲回收獎勵金。', '10年以上機車、7年以上汽車可申請獎勵金。 [cite: 18]', 'zh-TW'),
+        ('bulky', '堪用家具,彈簧床墊', '可與清潔隊各區隊約定收運時間到府回收。', '這是針對大型垃圾的專門服務。 [cite: 18]', 'zh-TW'),
+        ('bulky', '自行車,腳踏車', '可與清潔隊約定收運時間，或交由自行車行回收。', '回收時可能需要交付切結書。 [cite: 18]', 'zh-TW'),
+        ('bulky', '廢輪胎', '可由輪胎行、汽機車行、保修廠逆向回收或交由資源回收車回收。', '不包含特種車輛實心輪胎或飛機胎。 ', 'zh-TW'),
+        ('bulky', '陶瓷,磚瓦,廢棄陶器,瓷器,碗盤,花瓶,磁磚,馬桶,洗手台,磚頭,屋瓦', '少量請直接交付資源回收車，大量請與清潔隊約定時間。', '請先分類裝袋。 [cite: 21]', 'zh-TW'),
+
+        # --- 廚餘 (Food Waste) ---
+        ('food', '生熟廚餘,剩菜,剩飯,菜根,果皮,魚骨,肉骨,落葉', '瀝除水分後，倒入廚餘回收桶。', '硬質的果核(芒果、桃、李)、貝殼、竹筍殼、甘蔗皮等應作為堆肥廚餘或一般垃圾。 [cite: 30, 31, 33]', 'zh-TW'),
         
-        # === English rules (en) ===
-        ('food', 'Food Waste,Leftovers,Fruit Peels,Vegetable Scraps,Tea Leaves,Coffee Grounds', 'Put into the designated food waste bin or compost collection. Drain excess liquid and remove plastic packaging before disposal.', 'Do not mix with plastics, metals, glass or disposable tableware. Bones may be treated as general waste depending on local rules.', 'en'),
-        ('food', 'Food Waste Bag,Compost Bin', 'Use a biodegradable or local-authority-approved food waste bag; seal before disposing into the designated collection.', 'If no food waste collection is available, dispose as regular trash and avoid leakage.', 'en'),
-        ('paper', 'Tetra Pak,Beverage Carton,Milk Carton,Soya Milk Carton', 'Empty and rinse, flatten, then put into the paper-container recycling bin.', 'Remove straws and plastic films; straws/films should be recycled as plastic if separable.', 'en'),
-        ('paper', 'Newspaper,Books,Office Paper,Envelopes,Brochures,Cardboard', 'Flatten and bundle; remove tape and staples before putting into the paper recycling bin.', 'Do not include heavily soiled or grease-stained paper.', 'en'),
-        ('plastic', 'Plastic Bottles,Plastic Containers,Plastic Packaging(Clean)', 'Rinse clean and, when appropriate, flatten bottles. Remove lids if required by local guidelines and place in plastic recycling.', 'Composite snack/food bags are usually not recyclable. Check local rules for film/plastic bag collection.', 'en'),
-        ('other', 'Plastic Bags,Film Packaging,Cling Film', 'Clean and dry single-material plastic bags may be recycled at designated drop-off points; dirty or multi-layer packaging should be disposed as general waste.', 'Do not mix plastic film with paper recycling to avoid contamination.', 'en'),
-        ('metal', 'Metal Cans,Aluminum Cans,Metal Lids,Metal Utensils', 'Rinse and place into the metal recycling bin. Sharp edges should be handled carefully.', 'Large oily containers may need special handling and cannot be recycled through standard streams.', 'en'),
-        ('glass', 'Glass Bottles,Glass Jars,Wine Bottles,Sauce Jars', 'Rinse and put into the glass recycling bin. Wrap broken glass in newspaper before disposal.', 'Specialty glass (tempered, mirror glass) may not be accepted in regular glass recycling.', 'en'),
-        ('textile', 'Clothes,Bedding,Towels,Shoes', 'Donate usable items or place in textile collection bins. Heavily soiled or wet textiles may need to be disposed as general waste.', 'Repair or upcycle if possible to extend useful life.', 'en'),
-        ('ewaste', 'Batteries,Mobile Phones,Computers,Chargers,TVs,Refrigerators', 'Take small batteries to battery recycling bins; bring electronics to designated e-waste drop-off or collection events for safe recycling.', 'Lithium batteries and items containing hazardous substances must not be placed in general trash.', 'en'),
-        ('hazard', 'Batteries(Alkaline,Lithium),Fluorescent Tubes,Paints,Solvents,Expired Medicine,Chemicals', 'Deliver to hazardous waste collection centers or scheduled hazardous waste events; do not throw into regular bins.', 'Tape battery terminals to prevent short-circuiting; consult local guidelines for pharmaceutical disposal.', 'en'),
-        ('bulky', 'Furniture,Mattresses,Large Appliances,Sofa', 'Arrange pickup or drop-off according to local bulky waste procedures, which may include scheduling and fees.', 'Consider donation or reuse programs for items in good condition.', 'en'),
-        ('other', 'Cooking Oil,Used Cooking Oil', 'Allow to cool and collect in a sealed container; bring to used oil recycling points. Do not pour down the drain.', 'Small amounts may be absorbed with paper and disposed as general waste if local regulations permit.', 'en'),
-        ('other', 'Polystyrene,Styrofoam,Expanded Polystyrene', 'If clean and accepted locally, bring to specific recycling points; otherwise dispose as general waste.', 'Food-contaminated foam cannot be recycled.', 'en'),
-        ('other', 'Non-Recyclable,Contaminated Waste,Soiled Paper,Tissue,Diapers,Cotton Swabs', 'Place in the regular trash. Seal if smelly or moist to prevent leakage.', 'Used tissues, diapers and heavily contaminated paper should be treated as general waste.', 'en'),
-        ('hazard', 'Needles,Syringes,Medical Waste,Blood-Contaminated Materials', 'Follow medical waste disposal rules: place sharps in rigid containers and return to medical facilities or authorized handlers.', 'Do not dispose sharps in household trash to avoid risk of injury and infection.', 'en'),
-        ('other', 'Composite Packaging,Snack Packs,Multi-layer Foil Bags', 'Composite and multi-layer packaging is generally not recyclable; dispose as regular waste unless local separation is possible.', 'If materials can be separated into single materials, recycle accordingly.', 'en'),
-        ('metal', 'Wires,Copper Wiring,Small Metal Parts,Screws', 'Deliver to metal recycling facilities or resource recovery centers.', 'Remove non-metal parts where feasible to improve recyclability.', 'en'),
-        ('other', 'Usable Furniture,Working Appliances,Intact Books', 'Donate or reuse via second-hand channels or community collection services.', 'Clean items and check acceptance rules before donation.', 'en'),
-        ('bulky', 'Bicycle,Bike', 'Contact your local sanitation department for a scheduled pickup, or take it to a bike shop for recycling.', 'If in good condition, consider donating or selling it first.', 'en'),
-        ('food', 'Food Waste', 'Put into the compost bin.', 'Please drain excess liquid and remove packaging.', 'en'),
-        ('paper', 'Paper', 'Put into paper recycling.', 'Keep it dry and remove any non-paper items like tape.', 'en'),
-        ('plastic', 'Plastic', 'Put into plastic recycling.', 'Please rinse it first.', 'en'),
-        ('metal', 'Metal', 'Put into metal recycling.', 'Please rinse it first.', 'en'),
-        ('glass', 'Glass', 'Put into glass recycling.', 'Please rinse it first.', 'en'),
-        ('textile', 'Textile', 'Put into a clothing donation bin.', 'Clean clothes are recyclable; damaged or soiled ones are general waste.', 'en'),
-        ('ewaste', 'E-Waste', 'Take to a designated collection point or recycling vehicle.', 'Remove batteries and erase personal data before recycling.', 'en'),
-        ('hazard', 'Hazardous Waste', 'Must be handled by a specialized recycling service.', 'Do not mix with general or recyclable waste.', 'en'),
-        ('bulky', 'Bulky Waste', 'Requires a scheduled pickup from your local sanitation department.', 'Do not leave it on the street.', 'en'),
-        ('other', 'Other/General Waste', 'Put into the regular trash can.', 'Items that cannot be recycled belong here.', 'en'),
+        # --- 其他 (Other) ---
+        ('other', '潤滑油', '應交由機車行、汽車維修廠及加油站等設置的廢潤滑油回收站進行回收。', '不可倒入水槽或與其他回收物混合。 [cite: 18]', 'zh-TW'),
+        ('other', '食用油,回鍋油,過期食用油', '請先以塑膠容器盛裝後，交由資源回收車回收。', '切勿倒入排水管，會造成嚴重堵塞。 [cite: 21]', 'zh-TW'),
+        ('other', '暖暖包', '不含塑膠外包裝，可交付資源回收車回收。', '這屬於其他回收項目。 [cite: 18]', 'zh-TW'),
+        
+        # === English Rules (en) ===
+
+        # --- Paper ---
+        ('paper', 'Magazines, copy paper, wrapping paper, paper tea canisters, memo pads, calendars, paper bags, recycled paper, newspapers, computer paper, flyers, toilet paper rolls, phone books, wall calendars, cardboard boxes, corrugated paper, books, shopping bags, envelopes, business cards, notebooks, fruit protection bags', 'Please remove non-paper items like plastic covers, tape, coils, and staples first. Flatten and bundle for recycling.', 'For fruit protection bags, please remove strings, branches, and tape first. [cite: 2]', 'en'),
+        ('paper', 'Paper containers, Tetra Paks, Fresh House cartons, paper tableware, paper cups, paper bowls, paper plates, paper boxes', 'Empty the contents, wipe or rinse briefly, then flatten for recycling.', 'For cartons or Tetra Paks, remove the straw before flattening. [cite: 2]', 'en'),
+        ('other', 'Diapers, used tissues, sanitary pads, carbon paper, wax paper, release paper (sticker backing), transfer paper, thermal paper (e-receipts), sandpaper, glossy plastic-coated paper, soiled paper, firecracker scraps', 'These are all non-recyclable composite materials or soiled paper. Please bag them and hand them to the garbage truck.', 'Thermal paper (like e-receipts) contains chemicals and is not recyclable. [cite: 2]', 'en'),
+
+        # --- Metal ---
+        ('metal', 'Iron containers, cans, window frames, plates, rods, cages, boxes, railings, pencil cases, doors, shelves, hooks, buckets, bars, bells, cookware, cabinets, wires, thumbtacks, nails, bowls, blocks, chains, sheets, cups, basins, hammerheads, knife blades, umbrella frames, cookie tins, rebar', 'Please empty the contents and rinse lightly before recycling.', 'Composite materials like umbrella fabric and cushions must be removed; only recycle the frame. [cite: 2]', 'en'),
+        ('metal', 'Aluminum containers, cans, pots, basins, window frames, alloy wheels', 'Empty the contents, rinse lightly, and flatten for recycling.', 'Keep them dry and clean. [cite: 10]', 'en'),
+        ('metal', 'Copper-clad wires, stainless steel products, metal staplers, metal vegetable baskets, metal scissors, metal spoons, forks, keys, door locks, metal hangers, copper products, stainless steel gas stoves, steel rims', 'Hand them directly to the recycling truck.', 'The outer plastic sheath of wires does not need to be stripped. [cite: 10]', 'en'),
+        ('hazard', 'Gas cylinders, fire extinguishers, propane tanks', 'Should be returned to the original vendor or taken to a gas company/inspection site for handling.', 'These are pressurized containers. Do not handle them yourself or give them to the cleaning crew to avoid danger. [cite: 2]', 'en'),
+        ('other', 'Fuses, telephone lines, network cables', 'These items cannot be effectively recycled at present. Please dispose of them as general waste.', 'Although they contain metal, they are not recycled due to excessive impurities and high processing costs. [cite: 10]', 'en'),
+
+        # --- Plastic ---
+        ('plastic', 'Plastic containers, PET bottles, PVC bottles, PP cups, PE bottles, PS bottles, Yakult bottles, plastic boxes, basins, tables, chairs, CDs/DVDs, plastic folders, food storage containers, face wash basins, flower pots, acrylics, packaging film, plastic pipes, glue bottles, plastic baskets, plastic hangers, water buckets, helmets, videotapes, cassette tapes, plastic toys, disposable plastic tableware, styrofoam tableware, fresh food trays', 'Please empty the contents and rinse lightly before recycling.', 'Clean styrofoam tableware or fresh food trays are recyclable. [cite: 10]', 'en'),
+        ('plastic', 'Clean plastic bags', 'Empty any trash from the bag, tie it, and collect them in one bag for recycling.', 'Only clean, single-material plastic bags are recycled.', 'en'),
+        ('plastic', 'Clean packaging styrofoam, fish boxes, ice cream boxes, cake boxes, electronic appliance packaging materials', 'Please remove contents, tape, wood, nails, etc., and rinse clean first.', 'Styrofoam used in construction is not recyclable.', 'en'),
+        ('other', 'Plastic film, chemical fiber items, plastic sheets, resin, car seats, lamination film, floor mats, cling wrap, cushions, foam, travel bags, tape, raincoats, ballpoint pens, straws, feed bags, records, brushes, camera film, whiteboard erasers, plastic pencil cases, chopsticks, toothpicks, dental floss, rubber products', 'These are all non-recyclable composite or small-sized items. Please dispose of them as general waste.', 'Excluding scrap tires, which should be recycled separately. [cite: 10]', 'en'),
+        ('other', 'Dirty plastic bags, plastic bags with an inner foil layer, tea bags, snack bags', 'These types of composite or dirty plastic bags are not recyclable. Please dispose of them as general waste.', 'The criteria is whether the inner layer of the bag is silver or made of another material.', 'en'),
+
+        # --- Glass ---
+        ('glass', 'Glass containers, glass bottles, wine bottles, glass plates, glass cups, glass bowls, glass candlesticks, window glass, fish tanks', 'Remove lids and straws, empty the contents, and rinse lightly before recycling.', 'Please wrap broken glass in a cardboard box or newspaper and label it as "broken glass" to protect cleaning personnel.', 'en'),
+        ('other', 'Insulated glass, car windshields, fireproof glass, glass mats, lighting fixtures, mirrors', 'Due to different material compositions, these cannot be recycled with regular glass. Please dispose of them as general waste or consult the cleaning crew.', 'These are tempered or specially treated glass.', 'en'),
+
+        # --- Textile ---
+        ('textile', 'Old clothes, tops, pants, skirts, dresses, jackets, suits', 'Items must be wearable. Please wash them, bag them, and hand them to a recycling truck or place in a clothing donation bin.', 'Undergarments are not recycled for hygiene reasons. Clothes must be clean, undamaged, and free of stains or odors. [cite: 18]', 'en'),
+        ('other', 'Pillows, quilts, bed sheets, carpets, socks, shoes, leather clothes, underwear, stuffed animals, curtains, yarn, belts, bags, hats, rags', 'These items are not recyclable due to hygiene, material, or damage. Please dispose of them as general waste.', 'Shoes, bags, and stuffed animals in good, functional condition can be exchanged at flea markets. [cite: 18]', 'en'),
+
+        # --- E-waste ---
+        ('ewaste', 'Large home appliances, TVs, refrigerators, washing machines, air conditioners, photocopiers, stereos, range hoods', 'Can be returned to the retailer for reverse recycling or call your local cleaning crew to schedule a pickup.', 'Please empty the items as much as possible before recycling. [cite: 15]', 'en'),
+        ('ewaste', 'Small home appliances, mobile phones, electric kettles, induction cookers, spin dryers, rice cookers, water dispensers, microwaves, dryers, hair dryers, ovens, electric fans, heaters, dish dryers, coffee makers, cassette players, fax machines, VCD/DVD players, VCRs, chargers', 'Hand them directly to the recycling truck.', 'Please remove batteries and erase personal data before recycling. [cite: 15]', 'en'),
+        ('ewaste', 'IT equipment, laptops, monitors, screens, motherboards, hard drives, power supplies, computer cases, printers, UPS systems, keyboards, tablets, external hard drives, power banks', 'Can be handed to a recycling truck or returned to an IT product retailer for reverse recycling.', 'Peripherals like computer parts, mice, and mouse pads are not recyclable. [cite: 18]', 'en'),
+        ('ewaste', 'CDs, VCDs, DVDs', 'Please collect them in a bag before handing them over for recycling.', 'This does not include the case; plastic cases can be recycled separately. [cite: 18]', 'en'),
+
+        # --- Hazardous ---
+        ('hazard', 'Used batteries, mercury batteries, alkaline batteries, lithium batteries, nickel-cadmium batteries, rechargeable batteries, button cell batteries, lead-acid batteries', 'Hand over to a recycling truck or return to retailers like convenience stores or hypermarkets for reverse recycling.', 'Lead-acid batteries from vehicles can be returned to scooter/car repair shops. [cite: 18]', 'en'),
+        ('hazard', 'Lighting sources, fluorescent tubes, circular fluorescent tubes, light bulbs, cold cathode lamps', 'Please pack them in a paper sleeve, do not break them, and hand them to a recycling truck or a lighting retailer for recycling.', 'Traditional light bulbs with a cap diameter under 2.6 cm are not recyclable. [cite: 21]', 'en'),
+        ('hazard', 'Mercury thermometers', 'Please pack it in its original case and hand it specifically to the personnel on the recycling truck.', 'Does not include laboratory thermometers. [cite: 21]', 'en'),
+        ('hazard', 'Used pesticide containers', 'Please rinse at least three times, reuse the rinsing liquid for spraying, empty the contents, and then bag for recycling.', 'Can be taken to collection points at local farmers\' associations or given to a recycling truck. [cite: 21]', 'en'),
+
+        # --- Bulky ---
+        ('bulky', 'Scrap motor vehicles, cars, motorcycles', 'Contact a legal vehicle recycling company for disposal and receive a recycling incentive.', 'Incentives are available for scooters over 10 years old and cars over 7 years old. [cite: 18]', 'en'),
+        ('bulky', 'Usable furniture, spring mattresses', 'You can schedule a door-to-door pickup with your local cleaning crew.', 'This is a dedicated service for large waste items. [cite: 18]', 'en'),
+        ('bulky', 'Bicycles', 'You can schedule a pickup with the cleaning crew or take it to a bicycle shop for recycling.', 'A signed affidavit may be required for recycling. [cite: 18]', 'en'),
+        ('bulky', 'Scrap tires', 'Can be returned to tire shops, vehicle repair shops for reverse recycling, or handed to a recycling truck.', 'Does not include solid tires for special vehicles or aircraft tires.', 'en'),
+        ('bulky', 'Ceramics, bricks, tiles, discarded pottery, porcelain, bowls, plates, vases, toilets, sinks, roof tiles', 'Hand small quantities directly to the recycling truck; for large quantities, please schedule a pickup with the cleaning crew.', 'Please sort and bag them first. [cite: 21]', 'en'),
+
+        # --- Food Waste ---
+        ('food', 'Raw and cooked food scraps, leftovers, vegetable roots, fruit peels, fish bones, meat bones, fallen leaves', 'Drain excess water before putting into the food waste bin.', 'Hard pits (mango, peach), shells, bamboo shoot husks, and sugarcane peels should be treated as compost or general waste. [cite: 30, 31, 33]', 'en'),
+        
+        # --- Other ---
+        ('other', 'Lubricating oil', 'Should be taken to recycling stations at scooter shops, car repair shops, or gas stations.', 'Do not pour down the sink or mix with other recyclables. [cite: 18]', 'en'),
+        ('other', 'Cooking oil, used cooking oil, expired cooking oil', 'Please collect it in a plastic container first, then hand it to the recycling truck.', 'Never pour it down the drain as it will cause severe blockages. [cite: 21]', 'en'),
+        ('other', 'Heating packs', 'Excluding the plastic outer packaging, it can be handed to the recycling truck.', 'This belongs to other recyclable items. [cite: 18]', 'en'),
     ]
 
     try:
@@ -124,4 +172,5 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with the latest user-provided expert rules!")
+
 
