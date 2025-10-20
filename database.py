@@ -86,6 +86,7 @@ def insert_default_data(conn):
         ('hazard', '照明光源,日光燈,環管日光燈,燈泡,冷陰極燈', '可先用紙套裝好，不要打破，交給資源回收車或照明光源販賣業者回收。', '燈帽直徑2.6公分以下的傳統燈泡不可回收。', 'zh-TW'),
         ('hazard', '水銀體溫計', '請使用原包裝盒打包好，特別交付給資源回收車隨車人員。', '不包含實驗室用的溫度計。', 'zh-TW'),
         ('hazard', '廢農藥容器', '請至少清洗三次，並將清洗液重複噴灑利用，清除內容物後打包回收。', '可送交農會設置的回收點或資源回收車。', 'zh-TW'),
+        ('hazard', '油漆,油漆溶劑,水泥漆,凡立水', '內容物若未使用完，應將蓋子蓋緊，交由資源回收車或洽詢清潔隊。不可倒入水槽。', '容器若已清空，則可依其材質（金屬、塑膠）進行回收。', 'zh-TW'),
 
         # --- 大型廢棄物 (Bulky) ---
         ('bulky', '廢機動車輛,汽車,機車', '洽詢合法的廢車回收商進行報廢處理，可獲回收獎勵金。', '10年以上機車、7年以上汽車可申請獎勵金。', 'zh-TW'),
@@ -153,6 +154,7 @@ def insert_default_data(conn):
         ('ewaste', 'CDs, VCDs, DVDs', 'Please collect them in a bag before handing them over for recycling.', 'This does not include the case; plastic cases can be recycled separately. [cite: 18]', 'en'),
 
         # --- Hazardous ---
+        ('hazard', 'Paint, Paint Thinner, Varnish', 'If there is leftover content, seal the can tightly and hand it to a recycling truck or contact the cleaning crew. Do not pour down the drain.', 'If the container is empty, it can be recycled based on its material (metal, plastic).', 'en'),
         ('hazard', 'Used batteries, mercury batteries, alkaline batteries, lithium batteries, nickel-cadmium batteries, rechargeable batteries, button cell batteries, lead-acid batteries', 'Hand over to a recycling truck or return to retailers like convenience stores or hypermarkets for reverse recycling.', 'Lead-acid batteries from vehicles can be returned to scooter/car repair shops. [cite: 18]', 'en'),
         ('hazard', 'Lighting sources, fluorescent tubes, circular fluorescent tubes, light bulbs, cold cathode lamps', 'Please pack them in a paper sleeve, do not break them, and hand them to a recycling truck or a lighting retailer for recycling.', 'Traditional light bulbs with a cap diameter under 2.6 cm are not recyclable. [cite: 21]', 'en'),
         ('hazard', 'Mercury thermometers', 'Please pack it in its original case and hand it specifically to the personnel on the recycling truck.', 'Does not include laboratory thermometers. [cite: 21]', 'en'),
@@ -202,6 +204,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with the latest user-provided expert rules!")
+
 
 
 
