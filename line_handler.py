@@ -1,18 +1,18 @@
-# line_handler.py
 import os
 import tempfile
-import logging
-from pathlib import Path
-from typing import List, Dict, Optional
+import requests
 from linebot.models import (
     TextMessage, TextSendMessage, ImageMessage, LocationMessage, PostbackEvent,
     TemplateSendMessage, CarouselTemplate, CarouselColumn,
     PostbackAction, MessageAction, URIAction, FlexSendMessage, BubbleContainer, BoxComponent, TextComponent,
     SeparatorComponent, IconComponent, ButtonComponent
 )
+import logging
+from typing import List, Dict
 from config import Config
 from image_classifier import ImageClassifier
 from recycle_db import RecycleDatabase
+# 原本： from garbage_truck_api import GarbageTruckAPI
 from garbage_truck_api import NewTaipeiTruckAPI
 
 logger = logging.getLogger(__name__)
@@ -63,60 +63,56 @@ TEXTS = {
 class LineMessageHandler:
     def __init__(self, line_bot_api):
         self.line_bot_api = line_bot_api
-        # 影像分類器：請確保 image_classifier.classify_image(file_path) 存在且回傳合理 dict
         self.image_classifier = ImageClassifier()
         self.recycle_db = RecycleDatabase()
+        # 初始化新北市垃圾車 API
         try:
             self.garbage_truck_api = NewTaipeiTruckAPI()
         except Exception:
             logger.exception("Failed to initialize NewTaipeiTruckAPI")
             self.garbage_truck_api = None
 
-        self.news_api_url = os.getenv("NEWS_API_URL")
+        # News config
+        self.news_api_url = os.getenv("NEWS_API_URL")  # 可設定為回傳 JSON 的 endpoint
         self.news_timeout = int(os.getenv("NEWS_TIMEOUT_SEC", "6"))
 
     def _get_texts(self, lang_code):
-        # 假設 TEXTS 在模組頂部已定義
         return TEXTS.get(lang_code, TEXTS['en'])
 
     def handle_postback(self, event):
-        try:
-            user_id = event.source.user_id
-            postback_data = event.postback.data
-            if postback_data.startswith('lang_'):
-                lang_code = postback_data.split('_', 1)[1]
-                if self.recycle_db.update_user_language(user_id, lang_code):
-                    texts = self._get_texts(lang_code)
-                    self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['lang_selected']))
-        except Exception:
-            logger.exception("Error handling postback")
+        user_id = event.source.user_id
+        postback_data = event.postback.data
+        if postback_data.startswith('lang_'):
+            lang_code = postback_data.split('_')[1]
+            if self.recycle_db.update_user_language(user_id, lang_code):
+                texts = self._get_texts(lang_code)
+                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['lang_selected']))
 
     def handle_text_message(self, event):
-        try:
-            user_id = event.source.user_id
-            text = event.message.text.strip()
-            self.recycle_db.get_or_create_user(user_id)
-            user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
-            texts = self._get_texts(user_lang)
-            lower = text.lower()
-            if lower in ['/news', 'news', '最新消息', '公告']:
+        user_id = event.source.user_id
+        text = event.message.text.strip().lower()
+        self.recycle_db.get_or_create_user(user_id)
+        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
+        texts = self._get_texts(user_lang)
+
+        # 新增 /news 指令
+        if text in ['/news', 'news', '最新消息', '公告']:
+            try:
                 news_text = self._get_news_text(user_lang)
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=news_text))
-                return
-            if lower in ['/help', '幫助', 'help']:
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
-                return
-            if lower in ['/language', '語言', 'language']:
-                self._send_language_menu(event.reply_token)
-                return
-            # default reply
-            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['default_reply']))
-        except Exception:
-            logger.exception("Error handling text message")
-            try:
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text="發生錯誤，請稍後再試。"))
             except Exception:
-                logger.exception("Failed to send fallback reply")
+                logger.exception("Error fetching news")
+                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts.get('news_no_items')))
+            return
+
+        # /help 與 /language 保留
+        if text in ['/help', '幫助', 'help']:
+            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
+        elif text in ['/language', '語言', 'language']:
+            self._send_language_menu(event.reply_token)
+        else:
+            # default
+            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['default_reply']))
 
     def _get_news_text(self, user_lang: str) -> str:
         """
@@ -189,143 +185,64 @@ class LineMessageHandler:
         self.recycle_db.get_or_create_user(user_id)
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
-
-        temp_file_path = None
         try:
             message_content = self.line_bot_api.get_message_content(event.message.id)
-
-            # 1) 嘗試常見屬性 content (bytes)
+            # line-bot-sdk 的 message_content.content 為 bytes (較常見)
             data_bytes = None
             try:
                 data_bytes = getattr(message_content, "content", None)
             except Exception:
                 data_bytes = None
 
-            # 2) 如果沒有，嘗試 iter_content()（requests-like）
-            if not data_bytes and hasattr(message_content, "iter_content"):
+            if not data_bytes:
+                # try reading via iterator or .read()
                 try:
-                    chunks = []
-                    for chunk in message_content.iter_content(chunk_size=1024):
-                        chunks.append(chunk)
-                    data_bytes = b"".join(chunks) if chunks else None
-                except Exception:
-                    data_bytes = None
-
-            # 3) 如果沒有，嘗試 read()
-            if not data_bytes and hasattr(message_content, "read"):
-                try:
-                    data_bytes = message_content.read()
+                    # some SDK versions return an object with .content attribute that's bytes
+                    # else try iter_content (requests-like) or read()
+                    if hasattr(message_content, "iter_content"):
+                        chunks = []
+                        for ch in message_content.iter_content(1024):
+                            chunks.append(ch)
+                        data_bytes = b"".join(chunks)
+                    elif hasattr(message_content, "read"):
+                        data_bytes = message_content.read()
                 except Exception:
                     data_bytes = None
 
             if not data_bytes:
-                logger.error("Could not read image bytes from message_content")
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
-                return
+                raise RuntimeError("Could not read image content from Line message")
 
-            # 儲存成暫存檔
-            suffix = '.jpg'
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=str(RECEIVED_DIR)) as tmp:
-                tmp.write(data_bytes)
-                temp_file_path = tmp.name
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                temp_file.write(data_bytes)
+                temp_file_path = temp_file.name
 
-            logger.info(f"Saved incoming image to {temp_file_path}")
-
-            # 呼叫影像分類器：期望回傳 dict 例如:
-            # {'item_name_zh': '香水', 'item_name_en': 'perfume', 'category': 'hazard', 'confidence': 0.92}
-            classification_result = None
             try:
                 classification_result = self.image_classifier.classify_image(temp_file_path)
-            except Exception:
-                logger.exception("image_classifier.classify_image raised exception")
+                if classification_result:
+                    # 儲存到 DB（仍記錄 confidence，但不顯示給使用者）
+                    item_name_for_db = classification_result['item_name_zh'] if user_lang == 'zh-TW' else classification_result['item_name_en']
+                    # classification_result['confidence'] 仍可寫入 DB
+                    try:
+                        self.recycle_db.record_classification(user_id, classification_result.get('category'), classification_result.get('confidence'))
+                    except Exception:
+                        logger.exception("Failed to record classification to DB")
 
-            # classification_result 容錯處理：若 classifier 回傳多種格式，都可處理
-            if not classification_result:
-                logger.warning("image_classifier returned no result or None")
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
-                return
-
-            # 有些 classifier 會回傳 {'labels':[('perfume',0.9), ...]} 或類似
-            # 嘗試 normalize result 至我們期待的 keys
-            item_name_zh = classification_result.get('item_name_zh') or classification_result.get('label_zh') or classification_result.get('label') or None
-            item_name_en = classification_result.get('item_name_en') or classification_result.get('label_en') or classification_result.get('label') or None
-            category = classification_result.get('category') or classification_result.get('predicted_category') or None
-            confidence = classification_result.get('confidence') or classification_result.get('score') or None
-
-            # 若 classifier 只回傳 labels list，取 top1
-            if not item_name_en and isinstance(classification_result.get('labels'), list) and classification_result['labels']:
-                top = classification_result['labels'][0]
-                # top 可能為 tuple (label, score) 或 dict
-                if isinstance(top, tuple):
-                    item_name_en = top[0]
-                    confidence = confidence or float(top[1])
-                elif isinstance(top, dict):
-                    item_name_en = top.get('label') or top.get('name')
-                    confidence = confidence or float(top.get('score', 0.0))
-
-            # 若沒有 category，先用 label 交給 recycle_db.classify_text（融合 AI label）
-            if not category:
-                label_for_db = item_name_zh if user_lang == 'zh-TW' and item_name_zh else (item_name_en or '')
-                # 將 ai_label 與 ai_confidence 交給 classify_text（若你的 recycle_db.classify_text 支援 ai_label/ai_confidence）
-                # 我們的 recycle_db.classify_text(item_name) 預期會嘗試用預設規則直接分類
-                try:
-                    waste_info = self.recycle_db.get_specific_waste_info('other', label_for_db, user_lang)
-                except Exception:
-                    logger.exception("Error calling get_specific_waste_info")
-                    waste_info = None
-            else:
-                # 儘量使用 classifier 提供的 category 與 item name
-                label_for_db = item_name_zh if user_lang == 'zh-TW' and item_name_zh else (item_name_en or '')
-                try:
-                    waste_info = self.recycle_db.get_specific_waste_info(category, label_for_db, user_lang)
-                except Exception:
-                    logger.exception("Error calling get_specific_waste_info with detected category")
-                    waste_info = None
-
-            # 記錄辨識結果到 DB（容錯）
-            try:
-                rec_cat = category or (waste_info.get('category') if waste_info else 'other')
-                rec_conf = float(confidence) if confidence is not None else (waste_info.get('confidence') if waste_info else None)
-                self.recycle_db.record_classification(user_id, rec_cat, rec_conf or 0.0)
-            except Exception:
-                logger.exception("Failed to record classification into DB")
-
-            # 如果找到 waste_info，組裝並回覆 Flex Message（你已有 _create_result_flex_message）
-            if waste_info:
-                try:
-                    # classification_result 可能沒有 item_name_{zh,en}，補一個顯示名稱
-                    if not item_name_zh and user_lang == 'zh-TW':
-                        item_name_zh = label_for_db
-                    if not item_name_en and user_lang == 'en':
-                        item_name_en = label_for_db
-                    # build a minimal classification_result structure expected by _create_result_flex_message
-                    minimal_classification = {
-                        'item_name_zh': item_name_zh or label_for_db,
-                        'item_name_en': item_name_en or label_for_db,
-                        'category': rec_cat,
-                        'confidence': rec_conf or 0.0
-                    }
-                    flex = self._create_result_flex_message(minimal_classification, waste_info, texts, user_lang)
-                    self.line_bot_api.reply_message(event.reply_token, flex)
-                except Exception:
-                    logger.exception("Failed to build or send result flex message")
+                    waste_info = self.recycle_db.get_specific_waste_info(classification_result['category'], item_name_for_db, user_lang)
+                    if waste_info:
+                        # 回傳結果，但不包含信心度
+                        self._send_classification_result(event.reply_token, classification_result, waste_info, texts, user_lang)
+                    else:
+                        self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
+                else:
                     self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
-            else:
-                # 沒找到對應規則 -> 回覆無法識別
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
+            finally:
+                try:
+                    os.unlink(temp_file_path)
+                except Exception:
+                    pass
         except Exception as e:
             logger.exception(f"Error processing image: {e}")
-            try:
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
-            except Exception:
-                logger.exception("Failed to send fallback error reply")
-        finally:
-            # 清理暫存檔
-            try:
-                if temp_file_path and os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
-            except Exception:
-                logger.exception("Failed to delete temp image file")
+            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
 
     def handle_location_message(self, event):
         user_id = event.source.user_id
@@ -490,4 +407,3 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
-
