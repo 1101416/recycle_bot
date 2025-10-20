@@ -1,196 +1,303 @@
+# recycle_db.py
 import sqlite3
-import json
 import logging
-from datetime import datetime, timedelta
+import re
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from config import Config
 
 logger = logging.getLogger(__name__)
+DB_PATH = 'database.db'
+
+def _get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 class RecycleDatabase:
-    def __init__(self, db_path='database.db'):
+    def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
-    
-    def get_waste_info(self, category: str, language: str = 'zh-TW') -> Optional[Dict]:
+        # 內存快取（可 call reload_rules() 更新）
+        self.rules_cache = {'zh-TW': [], 'en': []}
+        self.reload_rules()
+
+    def reload_rules(self, language: Optional[str] = None):
+        """從 DB 載入 waste_info，並把 name 欄拆成 keywords list，長詞優先排序。"""
+        langs = [language] if language else ['zh-TW', 'en']
+        with _get_conn() as conn:
+            cursor = conn.cursor()
+            for lang in langs:
+                cursor.execute("SELECT id, category, name, disposal_method, tips FROM waste_info WHERE language = ?", (lang,))
+                rows = cursor.fetchall()
+                proc = []
+                for r in rows:
+                    raw = r['name'] or ''
+                    # 把逗號、換行等切開成關鍵字；也支援 /regex/ 形式
+                    parts = [p.strip() for p in re.split(r'[,\n]+', raw) if p.strip()]
+                    keywords = []
+                    for p in parts:
+                        if p.startswith('/') and p.endswith('/'):
+                            # regex token
+                            try:
+                                keywords.append({'type': 'regex', 'pattern': re.compile(p[1:-1], re.IGNORECASE)})
+                            except re.error:
+                                # 若 regex 錯誤，降為普通字串
+                                keywords.append({'type': 'text', 'text': p})
+                        else:
+                            keywords.append({'type': 'text', 'text': p})
+                    # 長詞優先（文字型關鍵字）
+                    keywords_sorted = sorted([k for k in keywords if k['type']=='text'], key=lambda x: len(x['text']), reverse=True)
+                    # regex 型關鍵字放後面
+                    regex_ks = [k for k in keywords if k['type']=='regex']
+                    keywords_sorted.extend(regex_ks)
+
+                    proc.append({
+                        'id': r['id'],
+                        'category': r['category'],
+                        'name': r['name'],
+                        'keywords': keywords_sorted,
+                        'disposal_method': r['disposal_method'],
+                        'tips': r['tips']
+                    })
+                self.rules_cache[lang] = proc
+        logger.info("Rules reloaded into cache.")
+
+    # -------------------------
+    # 高階函式：以 item_name 與（選擇性）AI 初步分類及其信心，做最終分類
+    # -------------------------
+    def classify_text(self, item_name: str, language: str = 'zh-TW', ai_label: Optional[str] = None, ai_confidence: Optional[float] = None) -> Dict:
         """
-        (智慧通用查詢 v2) 依據 category 和 language，查詢通用規則。
-        不再使用寫死的英文對應，而是直接查詢資料庫。
+        核心分類入口：
+        - 1) 先做 overrides (硬性規則，regex) 處理（例如汽車、香水、噴霧罐）
+        - 2) 在 rules_cache 中做長詞優先、整詞/邊界/substring 的多層比對，計算 confidence
+        - 3) 若 AI 提供初步類別 (ai_label) 與信心 (ai_confidence)，會與規則匹配結果合併（權重融合）
+        - 回傳：category, category_name, disposal_method, tips, confidence, matched_keyword
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            if not item_name or item_name.strip() == '':
+                return {'category': 'other', 'category_name': '其他' if language=='zh-TW' else 'Other', 'disposal_method': '', 'tips': '', 'confidence': 0.0}
+
+            item_raw = item_name.strip()
+            item_proc = item_raw.lower() if language == 'en' else item_raw
+
+            # ---------- Overrides: 高優先度正則或字串（避免常見誤判） ----------
+            overrides = {
+                'zh-TW': [
+                    (re.compile(r'汽車|轎車|車輛|卡車|貨車|車子'), 'bulky', '車輛屬大型廢棄物或需報廢，請聯絡清潔隊或車行辦理。'),
+                    (re.compile(r'機車|摩托車'), 'bulky', '機車屬特殊回收/報廢項目，請依地方法規處理。'),
+                    (re.compile(r'香水|香氛|香水瓶|香氛瓶'), 'hazard', '含揮發性有機溶劑，建議送至有害廢棄物回收。'),
+                    (re.compile(r'噴霧罐|氣霧罐'), 'hazard', '增壓容器可能易燃或爆裂，請至有害廢棄物回收站。'),
+                    (re.compile(r'汽車電池|車用電池|鉛酸電池'), 'hazard', '含重金屬與酸液，請送指定電池或有害廢棄物處理。'),
+                ],
+                'en': [
+                    (re.compile(r'\bcar\b|\bvehicle\b|\bautomobile\b'), 'bulky', 'Vehicle requires bulky-waste handling — contact local sanitation or recycling center.'),
+                    (re.compile(r'\bmotorbike\b|\bmotorcycle\b'), 'bulky', 'Motorcycle requires special handling or decommissioning.'),
+                    (re.compile(r'\bperfume\b|\bfragrance\b'), 'hazard', 'Contains volatile organic solvents — treat as hazardous.'),
+                    (re.compile(r'\baerosol\b|\bspray can\b'), 'hazard', 'Pressurized container; return to hazardous collection.'),
+                ]
+            }
+
+            for pat, forced_cat, note in overrides.get(language, []):
+                if pat.search(item_proc):
+                    # 盡量從通用 category 規則取說明
+                    with _get_conn() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT name, disposal_method, tips FROM waste_info WHERE category = ? AND language = ? LIMIT 1", (forced_cat, language))
+                        row = cursor.fetchone()
+                        if row:
+                            return {
+                                'category': forced_cat,
+                                'category_name': row['name'],
+                                'disposal_method': row['disposal_method'] or note,
+                                'tips': row['tips'],
+                                'confidence': 0.98,
+                                'matched_keyword': pat.pattern
+                            }
+                    return {'category': forced_cat, 'category_name': forced_cat, 'disposal_method': note, 'tips': '', 'confidence': 0.98, 'matched_keyword': pat.pattern}
+
+            # ---------- 權重化比對（rules_cache） ----------
+            rules = self.rules_cache.get(language, [])
+            best_score = 0.0
+            best_rule = None
+            best_kw = None
+
+            # tokenization for english
+            en_tokens = re.split(r'\W+', item_proc) if language == 'en' else re.split(r'[\s,，]+', item_proc)
+
+            for rule in rules:
+                for kw in rule['keywords']:
+                    if kw['type'] == 'text':
+                        kw_text = kw['text'].lower() if language == 'en' else kw['text']
+                        # 精確整串比對（最高分）
+                        if kw_text == item_proc:
+                            score = 1.0
+                        # 英文 whole-word 比對
+                        elif language == 'en' and re.search(r'\b' + re.escape(kw_text) + r'\b', item_proc):
+                            score = 0.95
+                        # 中文包含比對（長詞優先已處理）
+                        elif language == 'zh-TW' and kw_text in item_proc:
+                            score = 0.95
+                        # substring (英文)
+                        elif language == 'en' and kw_text in item_proc:
+                            score = 0.9
+                        # tokens match
+                        elif language == 'en' and kw_text in en_tokens:
+                            score = 0.85
+                        # 部分詞匹配（中文斷詞比對）
+                        elif language == 'zh-TW':
+                            tokens = re.split(r'[\s,，]+', item_proc)
+                            score = 0.0
+                            for t in tokens:
+                                if t and (t in kw_text or kw_text in t):
+                                    score = 0.75
+                                    break
+                        else:
+                            score = 0.0
+                    else:  # regex
+                        pat = kw['pattern']
+                        if pat.search(item_proc):
+                            score = 0.95
+                        else:
+                            score = 0.0
+
+                    if score > best_score:
+                        best_score = score
+                        best_rule = rule
+                        best_kw = kw.get('text') if kw.get('type') == 'text' else f"/{kw['pattern'].pattern}/"
+
+                    # 若高分則可中斷
+                    if best_score >= 0.995:
+                        break
+                if best_score >= 0.995:
+                    break
+
+            # ---------- AI label 融合（若有） ----------
+            # 若提供 ai_label 且 ai_confidence，將其映射到 Config.WASTE_CATEGORIES（若可能）
+            ai_influence = 0.0
+            ai_map_category = None
+            if ai_label and ai_confidence:
+                # 嘗試用 ai_label 做 keyword match（用同樣的 rules 去 match）
+                label_proc = ai_label.strip().lower() if language == 'en' else ai_label.strip()
+                # 直接比對 rules 中是否有對應 keyword
+                for rule in rules:
+                    for kw in rule['keywords']:
+                        if kw['type']=='text':
+                            t = kw['text'].lower() if language=='en' else kw['text']
+                            if (language=='en' and t == label_proc) or (language!='en' and t == label_proc):
+                                ai_map_category = rule['category']
+                                break
+                        else:
+                            if kw['pattern'].search(label_proc):
+                                ai_map_category = rule['category']
+                                break
+                    if ai_map_category:
+                        break
+                # 若 ai_map_category 有值，則 ai_influence 為 ai_confidence 的比例（0..0.4）
+                if ai_map_category:
+                    ai_influence = min(max(ai_confidence, 0.0), 1.0) * 0.4  # 上限 0.4
+
+            # ---------- 結果產出 ----------
+            if best_rule:
+                base_conf = best_score  # 0..1
+                combined_conf = base_conf + ai_influence
+                combined_conf = min(combined_conf, 0.99)
+                return {
+                    'category': best_rule['category'],
+                    'category_name': best_kw or (best_rule['name'].split(',')[0] if best_rule['name'] else best_rule['category']),
+                    'disposal_method': best_rule['disposal_method'],
+                    'tips': best_rule['tips'],
+                    'confidence': round(combined_conf, 3),
+                    'matched_keyword': best_kw
+                }
+
+            # ---------- fallback: 以 general other 回傳 ----------
+            # 若沒有任何匹配，回傳 other/general 類別的說明（如果 DB 有）
+            with _get_conn() as conn:
                 cursor = conn.cursor()
-                
-                # 取得該 category 對應的中文名稱 (例如 'bulky' -> '大型廢棄物')
-                category_name_zh = Config.WASTE_CATEGORIES.get(category)
-                if not category_name_zh: return None
-
-                # 直接查詢資料庫中與 category 相符的通用規則
-                # 通用規則的特點是：它的 "name" 欄位就是類別的名稱
-                cursor.execute(
-                    "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = ? AND name IN (?, ?)",
-                    (category, language, category_name_zh, category.capitalize()) # 聰明地同時比對中文名和英文名
-                )
-                
-                # 為了應對英文大小寫問題，我們再做一次更廣泛的查詢
-                if language == 'en':
-                    cursor.execute(
-                        "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = 'en'", (category,)
-                    )
-                    all_cat_rules = cursor.fetchall()
-                    # 找到 name 欄位與 category 幾乎相同的通用規則 (忽略大小寫)
-                    for rule in all_cat_rules:
-                        if rule[1].lower() == category.lower():
-                            result = rule
-                            break
-                    else:
-                        result = None
-                else: # 中文查詢
-                     cursor.execute(
-                        "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND name = ? AND language = 'zh-TW' LIMIT 1",
-                        (category, category_name_zh)
-                    )
-                     result = cursor.fetchone()
-
-
-                if result:
+                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = ? LIMIT 1", ('other', language))
+                row = cursor.fetchone()
+                if row:
                     return {
-                        'category': result[0],
-                        'category_name': result[1],
-                        'category_name_zh': category_name_zh,
-                        'disposal_method': result[2],
-                        'tips': result[3]
+                        'category': row['category'],
+                        'category_name': row['name'],
+                        'disposal_method': row['disposal_method'],
+                        'tips': row['tips'],
+                        'confidence': 0.35,
+                        'matched_keyword': None
                     }
-                
-                logger.warning(f"Could not find a generic rule for category '{category}' in language '{language}'.")
+
+            return {'category': 'other', 'category_name': '其他' if language=='zh-TW' else 'Other', 'disposal_method': '', 'tips': '', 'confidence': 0.35, 'matched_keyword': None}
+
+        except Exception as e:
+            logger.exception(f"Error classify_text: {e}")
+            return {'category': 'other', 'category_name': '其他' if language=='zh-TW' else 'Other', 'disposal_method': '', 'tips': '', 'confidence': 0.0, 'matched_keyword': None}
+
+    # ---------- 其他便利函式 ----------
+    def get_waste_info(self, category: str, language: str = 'zh-TW') -> Optional[Dict]:
+        """取得 category 的一般說明（直接從 DB 讀取）"""
+        try:
+            with _get_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = ? LIMIT 1", (category, language))
+                row = cursor.fetchone()
+                if row:
+                    return {'category': row['category'], 'category_name': row['name'], 'disposal_method': row['disposal_method'], 'tips': row['tips']}
                 return None
         except Exception as e:
-            logger.error(f"Error getting general waste info for category '{category}': {e}")
+            logger.exception(f"Error get_waste_info: {e}")
             return None
 
-    def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Optional[Dict]:
-        """
-        (智慧查詢引擎 v3) 使用多關鍵字匹配，並動態排除所有通用規則
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE language = ?", (language,))
-                all_rules = cursor.fetchall()
-                
-                # 動態產生所有通用規則的名稱列表，用於排除
-                generic_names_zh = list(Config.WASTE_CATEGORIES.values())
-                # 簡單地從中文通用規則產生英文通用規則列表 (未來可優化)
-                generic_names_en = [name for name in generic_names_zh] # 這裡暫時用中文，因為英文通用規則不統一
-                
-                best_match = None
-                item_to_check = item_name if language == 'zh-TW' else item_name.lower()
-                
-                for rule in all_rules:
-                    db_keywords_str = rule[1]
-                    
-                    # 智慧排除：只要規則名稱是任何一個通用類別的名稱，就跳過
-                    if db_keywords_str in generic_names_zh or db_keywords_str in generic_names_en:
-                        continue
-                    
-                    db_keywords = [kw.strip().lower() if language == 'en' else kw.strip() for kw in db_keywords_str.split(',')]
-                    
-                    for keyword in db_keywords:
-                        if keyword in item_to_check:
-                            best_match = rule
-                            break
-                    if best_match:
-                        break
-
-                if best_match:
-                    logger.info(f"Expert rule found for '{item_name}', using rule for keywords '{best_match[1]}'.")
-                    correct_category = best_match[0]
-                    category_name_zh = Config.WASTE_CATEGORIES.get(correct_category)
-                    category_name_display = best_match[1].split(',')[0]
-
-                    return {
-                        'category': correct_category,
-                        'category_name': category_name_display,
-                        'category_name_zh': category_name_zh,
-                        'disposal_method': best_match[2],
-                        'tips': best_match[3]
-                    }
-                
-                logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
-                return self.get_waste_info(category, language)
-        except Exception as e:
-            logger.error(f"Error getting specific waste info: {e}")
-            return self.get_waste_info(category, language)
-
-    # --- 以下為使用者資料相關函式，維持不變 ---
+    # 使用者資料、紀錄與統計函式（維持與你的 DB schema 相容）
     def get_or_create_user(self, user_id: str, language: str = 'zh-TW') -> Dict:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with _get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
-                user = cursor.fetchone()
-                if user:
-                    cursor.execute('UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE user_id = ?', (user_id,))
+                cursor.execute('SELECT user_id, language, created_at, last_active, eco_points FROM users WHERE user_id = ?', (user_id,))
+                row = cursor.fetchone()
+                if row:
+                    cursor.execute('UPDATE users SET last_active = datetime("now","localtime") WHERE user_id = ?', (user_id,))
                     conn.commit()
-                    return {'user_id': user[0], 'language': user[1], 'created_at': user[2], 'last_active': user[3], 'eco_points': user[4]}
-                else:
-                    cursor.execute('INSERT INTO users (user_id, language, created_at, last_active, eco_points) VALUES (?, ?, ?, ?, ?)', (user_id, language, datetime.now(), datetime.now(), 0))
-                    conn.commit()
-                    return {'user_id': user_id, 'language': language, 'created_at': datetime.now().isoformat(), 'last_active': datetime.now().isoformat(), 'eco_points': 0}
-        except Exception as e:
-            logger.error(f"Error getting/creating user: {e}")
-            return None
-    
-    def get_user_language(self, user_id: str) -> Optional[str]:
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute('SELECT language FROM users WHERE user_id = ?', (user_id,))
-                result = cursor.fetchone()
-                return result[0] if result else None
-        except Exception as e:
-            logger.error(f"Error getting user language: {e}")
-            return None
-    
-    def update_user_language(self, user_id: str, language: str) -> bool:
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute('UPDATE users SET language = ?, last_active = CURRENT_TIMESTAMP WHERE user_id = ?', (language, user_id))
+                    return dict(row)
+                now = datetime.now().isoformat()
+                cursor.execute('INSERT INTO users (user_id, language, created_at, last_active, eco_points) VALUES (?, ?, ?, ?, ?)', (user_id, language, now, now, 0))
                 conn.commit()
-                return cursor.rowcount > 0
+                return {'user_id': user_id, 'language': language, 'created_at': now, 'last_active': now, 'eco_points': 0}
         except Exception as e:
-            logger.error(f"Error updating user language: {e}")
-            return False
-    
-    def record_classification(self, user_id: str, category: str, confidence: float, image_path: str = None, is_correct: bool = None, feedback: str = None) -> bool:
+            logger.exception(f"Error get_or_create_user: {e}")
+            return None
+
+    def record_classification(self, user_id: str, category: str, confidence: float, image_path: str = None, is_correct: Optional[bool] = None, feedback: str = None) -> bool:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with _get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute('INSERT INTO classifications (user_id, category, confidence, image_path, is_correct, feedback, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, category, confidence, image_path, is_correct, feedback, datetime.now()))
+                cursor.execute('''
+                    INSERT INTO classifications (user_id, category, confidence, image_path, is_correct, feedback, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime("now","localtime"))
+                ''', (user_id, category, confidence, image_path, 1 if is_correct else 0 if is_correct == False else None, feedback))
                 if is_correct:
                     cursor.execute('UPDATE users SET eco_points = eco_points + 1 WHERE user_id = ?', (user_id,))
                 conn.commit()
                 return True
         except Exception as e:
-            logger.error(f"Error recording classification: {e}")
+            logger.exception(f"Error record_classification: {e}")
             return False
-    
+
     def get_user_stats(self, user_id: str) -> Dict:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with _get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT COUNT(*) FROM classifications WHERE user_id = ?', (user_id,))
-                total_classifications = cursor.fetchone()[0]
-                cursor.execute('SELECT COUNT(*) FROM classifications WHERE user_id = ? AND is_correct = 1', (user_id,))
-                correct_classifications = cursor.fetchone()[0]
-                accuracy_rate = (correct_classifications / total_classifications * 100) if total_classifications > 0 else 0
-                cursor.execute("SELECT category, COUNT(*) as count FROM classifications WHERE user_id = ? GROUP BY category ORDER BY count DESC LIMIT 1", (user_id,))
-                most_common = cursor.fetchone()
-                most_common_category = most_common[0] if most_common else '無'
+                cursor.execute('SELECT COUNT(*) as cnt FROM classifications WHERE user_id = ?', (user_id,))
+                total = cursor.fetchone()['cnt']
+                cursor.execute('SELECT COUNT(*) as cnt FROM classifications WHERE user_id = ? AND is_correct = 1', (user_id,))
+                correct = cursor.fetchone()['cnt']
+                accuracy = (correct / total * 100) if total > 0 else 0
+                cursor.execute("SELECT category, COUNT(*) as c FROM classifications WHERE user_id = ? GROUP BY category ORDER BY c DESC LIMIT 1", (user_id,))
+                row = cursor.fetchone()
+                most_common = row['category'] if row else None
                 cursor.execute('SELECT eco_points FROM users WHERE user_id = ?', (user_id,))
-                eco_points_result = cursor.fetchone()
-                eco_points = eco_points_result[0] if eco_points_result else 0
-                return {'total_classifications': total_classifications, 'correct_classifications': correct_classifications, 'accuracy_rate': accuracy_rate, 'most_common_category': most_common_category, 'eco_points': eco_points}
+                ep = cursor.fetchone()
+                eco_points = ep['eco_points'] if ep else 0
+                return {'total_classifications': total, 'correct_classifications': correct, 'accuracy_rate': accuracy, 'most_common_category': most_common or '無', 'eco_points': eco_points}
         except Exception as e:
-            logger.error(f"Error getting user stats: {e}")
+            logger.exception(f"Error get_user_stats: {e}")
             return {'total_classifications': 0, 'correct_classifications': 0, 'accuracy_rate': 0, 'most_common_category': '無', 'eco_points': 0}
