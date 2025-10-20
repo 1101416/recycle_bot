@@ -1,3 +1,5 @@
+# image_classifier.py
+
 import os
 import logging
 import re
@@ -11,16 +13,24 @@ logger = logging.getLogger(__name__)
 # --- AI 模型設定 ---
 WASTE_CATEGORIES_TEXT = ", ".join(Config.WASTE_CATEGORIES.keys())
 
-# 給 AI 的新版專家指令 (Prompt)，要求同時回傳中英文品項
+# --- 更新後的 AI 專家指令 (Prompt) ---
+# 根據台灣環保署的詳細規則進行了優化
 SYSTEM_PROMPT = f"""
 You are a waste classification expert for Taiwan.
 Your task is to identify the main object in the user's image.
 First, classify it into one of the following general categories: {WASTE_CATEGORIES_TEXT}.
 Second, provide the specific name of the item in BOTH Traditional Chinese and English.
 
-**IMPORTANT RULES FOR TAIWAN:**
-- Beverage cartons (like Tetra Paks) are classified as 'paper'.
-- Used tissue paper is not recyclable and must be classified as 'other'.
+**IMPORTANT RULES FOR TAIWAN (based on official guidelines):**
+- Beverage cartons (like Tetra Paks, milk boxes) are 'paper' (紙容器類).
+- Used tissue paper, diapers, and heavily soiled paper are 'other' (一般垃圾).
+- Styrofoam for packaging (clean) is 'other' (保麗龍), but often collected with plastics. Let's classify it as 'plastic' for simplicity if clean.
+- Glass bottles are 'glass'. However, mirrors, light bulbs, and heat-resistant glass are NOT regular glass; light bulbs are 'hazard'.
+- All types of batteries, including button cells and power banks, are 'hazard' (有害垃圾).
+- Whole vehicles (cars, motorcycles) are 'bulky' (大型廢棄物).
+- Clean plastic bags are recyclable ('plastic'), but dirty or composite ones (like snack bags) are 'other'.
+- Expired medicine is 'hazard'.
+- Cooking oil is 'other', collected for recycling.
 
 You MUST respond in the following format, and nothing else:
 category: [lowercase_english_category], item_zh: [traditional_chinese_name], item_en: [english_name]
