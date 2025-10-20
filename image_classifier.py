@@ -31,6 +31,13 @@ Second, provide the specific name of the item in BOTH Traditional Chinese and En
 - Clean plastic bags are recyclable ('plastic'), but dirty or composite ones (like snack bags) are 'other'.
 - Expired medicine is 'hazard'.
 - Cooking oil is 'other', collected for recycling.
+- **Cleanliness is Key**: If an item (paper, plastic) is heavily soiled with oil or food, classify it as 'other' (一般垃圾).
+- **Paper**: Beverage cartons (like Tetra Paks) are 'paper'. Used tissues, diapers, and thermal paper (like receipts) are 'other'.
+- **Plastic**: Clean plastic bags and styrofoam are 'plastic'. Dirty ones or composite bags (like snack packs) are 'other'.
+- **Glass**: Glass bottles are 'glass'. Mirrors and light bulbs are NOT; classify mirrors as 'other' and light bulbs as 'hazard'.
+- **Hazardous**: All batteries, light bulbs/tubes, and thermometers are 'hazard' (有害垃圾).
+- **Bulky**: Whole vehicles, furniture, and tires are 'bulky' (大型廢棄物).
+- **Textiles**: Wearable clothing is 'textile'. Pillows, blankets, socks, and shoes are 'other'.
 
 You MUST respond in the following format, and nothing else:
 category: [lowercase_english_category], item_zh: [traditional_chinese_name], item_en: [english_name]
@@ -89,3 +96,4 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
             return None
+
