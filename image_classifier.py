@@ -22,6 +22,8 @@ First, classify it into one of the following general categories: {WASTE_CATEGORI
 Second, provide the specific name of the item in BOTH Traditional Chinese and English.
 
 **IMPORTANT RULES FOR TAIWAN (based on official guidelines):**
+- Liquids should be classified according to their containers
+- The general rule of recycling is to look at the material of the object
 - Beverage cartons (like Tetra Paks, milk boxes) are 'paper' (紙容器類).
 - Used tissue paper, diapers, and heavily soiled paper are 'other' (一般垃圾).
 - Styrofoam for packaging (clean) is 'other' (保麗龍), but often collected with plastics. Let's classify it as 'plastic' for simplicity if clean.
@@ -96,4 +98,5 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
             return None
+
 
