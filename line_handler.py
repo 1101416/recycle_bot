@@ -372,12 +372,35 @@ class LineMessageHandler:
             contents=carousel_contents
         )
 
+    # line_handler.py
+
+    # ... (其他函式不變) ...
+
     def _create_result_flex_message(self, classification_result, waste_info, texts, user_lang):
         """
-        建立分類結果的 Flex Message — 已移除信心度顯示（不回傳 confidence 給使用者）
+        建立分類結果的 Flex Message — (修正 2.0 版本)
+        - 中文模式顯示 "紙類"
+        - 英文模式顯示 "Paper (紙類)"
         """
         item_display_name = classification_result['item_name_en'] if user_lang == 'en' else classification_result['item_name_zh']
-        category_display_text = f"{waste_info['category_name']} ({waste_info['category_name_zh']})"
+        
+        # --- ### 修正 2.0 ### ---
+        
+        # 從 waste_info 獲取主分類的英文鍵名和中文名稱
+        main_category_key = waste_info['category'] # 例如 'paper'
+        main_category_zh = waste_info['category_name_zh'] # 例如 '紙類'
+
+        category_display_text = ""
+        if user_lang == 'en':
+            # 英文模式：組合英文首字母大寫和中文
+            english_name = main_category_key.capitalize()
+            category_display_text = f"{english_name} ({main_category_zh})"
+        else:
+            # 中文模式：僅顯示中文主分類
+            category_display_text = main_category_zh
+            
+        # --- ### 修正結束 ### ---
+
         bubble = BubbleContainer(
             direction='ltr',
             header=BoxComponent(layout='vertical', contents=[TextComponent(text=texts['result_title'], weight='bold', size='xl', color='#1DB446')]),
@@ -388,6 +411,7 @@ class LineMessageHandler:
                 ]),
                 BoxComponent(layout='horizontal', contents=[
                     TextComponent(text=f"📂 {texts['result_category']}:", size='sm', color='#555555', flex=4),
+                    # 這裡使用我們修正後的 category_display_text
                     TextComponent(text=category_display_text, size='sm', color='#111111', align='end', flex=6)
                 ]),
                 SeparatorComponent(margin='md'),
@@ -407,3 +431,6 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
+}
+
