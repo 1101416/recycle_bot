@@ -432,5 +432,6 @@ class LineMessageHandler:
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
 
-}
+
+
 
