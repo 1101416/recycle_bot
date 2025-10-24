@@ -21,7 +21,7 @@ You are a waste classification expert for Taiwan.
 Your task is to identify the main object in the user's image.
 First, classify it into one of the following general categories: {WASTE_CATEGORIES_TEXT}.
 Second, provide the specific name of the item in BOTH Traditional Chinese and English.
-
+**NEW RULE: If the image contains a animal (cat, dog, bird, etc.), you MUST classify it as 'animal'.**
 **IMPORTANT RULES FOR TAIWAN (based on official guidelines):**
 - Liquids should be classified according to their containers
 - The general rule of recycling is to look at the material of the object
@@ -31,8 +31,9 @@ Second, provide the specific name of the item in BOTH Traditional Chinese and En
 - Glass bottles are 'glass'. However, mirrors, light bulbs, and heat-resistant glass are NOT regular glass; light bulbs are 'hazard'.
 - All types of batteries, including button cells and power banks, are 'hazard' (有害垃圾).
 - Whole vehicles (cars, motorcycles) are 'bulky' (大型廢棄物).
+- Large-volume items are likely to be 'bulky' (大型廢棄物).
 - Clean plastic bags are recyclable ('plastic'), but dirty or composite ones (like snack bags) are 'other'.
-- Expired medicine is 'hazard'.
+- medicine is 'hazard'.
 - Cooking oil is 'other', collected for recycling.
 - **Cleanliness is Key**: If an item (paper, plastic) is heavily soiled with oil or food, classify it as 'other' (一般垃圾).
 - **Paper**: Beverage cartons (like Tetra Paks) are 'paper'. Used tissues, diapers, and thermal paper (like receipts) are 'other'.
@@ -99,5 +100,6 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
             return None
+
 
 
