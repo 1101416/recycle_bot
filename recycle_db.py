@@ -1,3 +1,4 @@
+
 import sqlite3
 import json
 import logging
@@ -13,37 +14,33 @@ class RecycleDatabase:
     
     def get_waste_info(self, category: str, language: str = 'zh-TW') -> Optional[Dict]:
         """
-        (智慧通用查詢 v2) 依據 category 和 language，查詢通用規則。
-        不再使用寫死的英文對應，而是直接查詢資料庫。
+        (智慧通用查詢 v2.1 - 已修正 Bug 2)
+        依據 category 和 language，查詢通用規則。
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # 取得該 category 對應的中文名稱 (例如 'bulky' -> '大型廢棄物')
                 category_name_zh = Config.WASTE_CATEGORIES.get(category)
                 if not category_name_zh: return None
 
-                # 直接查詢資料庫中與 category 相符的通用規則
-                # 通用規則的特點是：它的 "name" 欄位就是類別的名稱
-                cursor.execute(
-                    "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = ? AND name IN (?, ?)",
-                    (category, language, category_name_zh, category.capitalize()) # 聰明地同時比對中文名和英文名
-                )
+                result = None
                 
-                # 為了應對英文大小寫問題，我們再做一次更廣泛的查詢
                 if language == 'en':
                     cursor.execute(
                         "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = 'en'", (category,)
                     )
                     all_cat_rules = cursor.fetchall()
-                    # 找到 name 欄位與 category 幾乎相同的通用規則 (忽略大小寫)
+                    
+                    # --- vvv 修正 Bug 2 vvv ---
+                    # 修正：使用 'in' 進行彈性比對 (例如 "ewaste" in "e-waste")
+                    # 而不是 '==' ( "ewaste" == "e-waste" -> False)
                     for rule in all_cat_rules:
-                        if rule[1].lower() == category.lower():
+                        if category.lower() in rule[1].lower(): 
                             result = rule
                             break
-                    else:
-                        result = None
+                    # --- ^^^ 修正 Bug 2 ^^^ ---
+                
                 else: # 中文查詢
                      cursor.execute(
                         "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND name = ? AND language = 'zh-TW' LIMIT 1",
@@ -69,7 +66,8 @@ class RecycleDatabase:
 
     def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Optional[Dict]:
         """
-        (智慧查詢引擎 v3) 使用多關鍵字匹配，並動態排除所有通用規則
+        (智慧查詢引擎 v3.1 - 已修正 Bug 1)
+        使用多關鍵字匹配，並動態排除所有通用規則
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -77,25 +75,42 @@ class RecycleDatabase:
                 cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE language = ?", (language,))
                 all_rules = cursor.fetchall()
                 
-                # 動態產生所有通用規則的名稱列表，用於排除
                 generic_names_zh = list(Config.WASTE_CATEGORIES.values())
-                # 簡單地從中文通用規則產生英文通用規則列表 (未來可優化)
-                generic_names_en = [name for name in generic_names_zh] # 這裡暫時用中文，因為英文通用規則不統一
-                
+                # (英文的通用規則名稱在 database.py 中不統一，例如 "E-Waste", "Food Waste")
+                # 我們假設英文通用規則的 name 欄位都包含 Waste 或 'Paper', 'Plastic', 'Metal', 'Glass', 'Textile'
+                generic_names_en = [cat.capitalize() for cat in Config.WASTE_CATEGORIES.keys()] + ["Waste"]
+
                 best_match = None
                 item_to_check = item_name if language == 'zh-TW' else item_name.lower()
                 
                 for rule in all_rules:
                     db_keywords_str = rule[1]
                     
-                    # 智慧排除：只要規則名稱是任何一個通用類別的名稱，就跳過
-                    if db_keywords_str in generic_names_zh or db_keywords_str in generic_names_en:
+                    # 智慧排除：
+                    # 1. 排除中文通用規則 (e.g., "紙類", "廚餘")
+                    if db_keywords_str in generic_names_zh:
                         continue
+                    
+                    # 2. 排除英文通用規則 (e.g., "Paper", "E-Waste")
+                    is_generic_en = False
+                    if language == 'en':
+                        for gen_name in generic_names_en:
+                            if gen_name in db_keywords_str:
+                                is_generic_en = True
+                                break
+                    if is_generic_en:
+                        continue
+                    
                     
                     db_keywords = [kw.strip().lower() if language == 'en' else kw.strip() for kw in db_keywords_str.split(',')]
                     
                     for keyword in db_keywords:
-                        if keyword in item_to_check:
+                        
+                        # --- vvv 修正 Bug 1 vvv ---
+                        # 修正：檢查 AI 辨識的物品 (item_to_check) 是否為 資料庫關鍵字 (keyword) 的一部分
+                        # (例如： if "battery" in "used batteries")
+                        if item_to_check in keyword:
+                        # --- ^^^ 修正 Bug 1 ^^^ ---
                             best_match = rule
                             break
                     if best_match:
@@ -116,12 +131,14 @@ class RecycleDatabase:
                     }
                 
                 logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
+                # 如果找不到特定規則，回傳「通用規則」（現在 Bug 2 已修復，這裡會正常運作）
                 return self.get_waste_info(category, language)
         except Exception as e:
             logger.error(f"Error getting specific waste info: {e}")
             return self.get_waste_info(category, language)
 
     # --- 以下為使用者資料相關函式，維持不變 ---
+    
     def get_or_create_user(self, user_id: str, language: str = 'zh-TW') -> Dict:
         try:
             with sqlite3.connect(self.db_path) as conn:
