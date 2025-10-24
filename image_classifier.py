@@ -39,6 +39,7 @@ Second, provide the specific name of the item in BOTH Traditional Chinese and En
 * **hazard**: All batteries (button cells, power banks), light bulbs/tubes, thermometers, and expired medicine are 'hazard' (有害垃圾).
 * **bulky**: Whole vehicles (cars, motorcycles), large furniture (mattresses, sofas), and tires are 'bulky' (大型廢棄物).
 * **animal**: Dead animals (pets, strays, birds) are 'animal'.
+* **money**: (Special Rule) All currency (banknotes, coins) MUST be classified as 'money'. It is NOT 'paper' or 'metal' recycling.
 * **other**: Items that cannot be recycled, such as cooking oil (collected separately), dirty recyclables, mirrors, or complex composite materials.
 
 ---
@@ -121,6 +122,7 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call for text: {e}")
             return None
+
 
 
 
