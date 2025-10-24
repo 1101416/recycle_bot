@@ -47,8 +47,8 @@ TEXTS = {
         'result_category': '類別',
         'result_method': '處理方式',
         'result_tips': '小提醒',
-        'error_unrecognized': '抱歉，無法識別這張圖片中的垃圾類型。\n請確保：\n• 圖片清晰\n• 垃圾在圖片中佔主要部分\n• 光線充足\n\n請重新拍照或嘗試其他圖片。',
-        'default_reply': '請上傳垃圾照片進行分類，或輸入 /help 查看完整功能！',
+        'error_unrecognized': '抱歉，無法識別這張圖片中的垃圾類型。\n請確保：\n• 圖片清晰\n• 垃圾在圖片中佔主要部分\n• 光線充足\n\n請嘗試拍攝垃圾上的產品名稱或文字輸入物品名稱。',
+        'default_reply': '請上傳垃圾照片或輸入文字進行分類，或輸入 /help 查看完整功能！',
         'welcome_on_follow': """{Nickname} 您好～👋
 我是您的專屬環保小幫手 🤖 {AccountName}！
 以後，環保的大小事就交給我吧！💪
@@ -109,8 +109,8 @@ Or, use the rich menu below for common features!""",
         'result_category': 'Category',
         'result_method': 'Disposal Method',
         'result_tips': 'Tips',
-        'error_unrecognized': 'Sorry, I couldn\'t recognize the item in this image.\nPlease try another photo.',
-        'default_reply': 'Please upload a photo for classification, or type /help to see all commands!',
+        'error_unrecognized': 'Sorry, I couldn’t recognize the type of waste in this image.\nPlease make sure :\n• The image is clear\n• The waste item is the main focus\n• The lighting is sufficient\n\nTry taking a photo that shows the product label or type name instead.,
+        'default_reply': 'Please upload a photo or type text for classification, or type /help to see all commands!',
         'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
         'location_searching': 'Searching for garbage trucks within 2 km of your location, please wait...',
         'location_not_found': 'Sorry, no real-time garbage truck information found within 2 km of your location.',
@@ -196,31 +196,91 @@ class LineMessageHandler:
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['lang_selected']))
 
     def handle_text_message(self, event):
+        """
+        處理文字訊息：
+        1. 檢查是否為 /help, /news, /language 等指令。
+        2. 如果不是指令，則將該文字視為「關鍵字」進行資料庫搜尋。
+        """
         user_id = event.source.user_id
-        text = event.message.text.strip().lower()
+        # 1. 取得原始文字，並建立一個小寫版本用於指令比對
+        raw_text = event.message.text.strip()
+        command_text = raw_text.lower()
+
+        # 2. 取得使用者語言設定
         self.recycle_db.get_or_create_user(user_id)
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
 
-        # 新增 /news 指令
-        if text in ['/news', 'news', '最新消息', '公告']:
-            try:
+        try:
+            # --- 優先處理「指令」 ---
+            if command_text in ['/help', '幫助', 'help']:
+                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
+                return
+
+            if command_text in ['/language', '語言', 'language']:
+                self._send_language_menu(event.reply_token)
+                return
+
+            if command_text in ['/news', 'news', '最新消息', '公告']:
                 news_text = self._get_news_text(user_lang)
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=news_text))
-            except Exception:
-                logger.exception("Error fetching news")
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts.get('news_no_items')))
-            return
+                return
+            
+            # (未來可在此加入 /clothes 指令的處理)
+            # if command_text == '/clothes':
+            #    ...
 
-        # /help 與 /language 保留
-        if text in ['/help', '幫助', 'help']:
-            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
-        elif text in ['/language', '語言', 'language']:
-            self._send_language_menu(event.reply_token)
-        else:
-            # default
-            self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['default_reply']))
+            # --- 如果不是指令，則執行「文字分類搜尋」 ---
+            
+            # 我們利用 recycle_db.py 中的 get_specific_waste_info
+            # 它會自動搜尋關鍵字，如果找不到，會自動回傳 'other' (一般垃圾) 的處理方式
+            waste_info = self.recycle_db.get_specific_waste_info(
+                category='other',  # 提供 'other' 作為預設/備用分類
+                item_name=raw_text, # 使用者輸入的原始文字
+                language=user_lang
+            )
 
+            if waste_info:
+                # 建立一個模擬的 classification_result 以便重用 Flex Message
+                mock_classification_result = {
+                    'category': waste_info['category'],
+                    # 根據語言顯示使用者輸入的文字
+                    'item_name_zh': raw_text if user_lang == 'zh-TW' else '', 
+                    'item_name_en': raw_text if user_lang == 'en' else ''
+                }
+                
+                # 呼叫現有的 Flex Message 產生器
+                flex_message = self._create_result_flex_message(
+                    mock_classification_result,
+                    waste_info,
+                    texts,
+                    user_lang
+                )
+                self.line_bot_api.reply_message(event.reply_token, flex_message)
+                
+                # (可選) 紀錄這次成功的文字搜尋
+                try:
+                    self.recycle_db.record_classification(
+                        user_id,
+                        waste_info['category'],
+                        1.0,  # 文字比對成功，信心度 100%
+                        image_path=None,
+                        is_correct=True
+                    )
+                except Exception as db_e:
+                    logger.exception(f"Failed to record text classification: {db_e}")
+
+            else:
+                # 這種情況理論上不會發生 (因為 get_specific_waste_info 會回傳 'other')
+                # 但作為保險，回傳更新後的錯誤訊息
+                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
+
+        except Exception as e:
+            logger.exception(f"Error handling text message: {e}")
+            self.line_bot_api.reply_message(
+                event.reply_token,
+                TextMessage(text=texts['error_unrecognized'])
+            )
     def _get_news_text(self, user_lang: str) -> str:
         """
         嘗試從 NEWS_API_URL 取得新聞 JSON（彈性處理），回傳可直接發送給使用者的文字。
@@ -538,6 +598,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
