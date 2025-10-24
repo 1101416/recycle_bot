@@ -1,6 +1,3 @@
-
-# image_classifier.py
-
 import os
 import logging
 import re
@@ -21,6 +18,7 @@ You are a waste classification expert for Taiwan.
 Your task is to identify the main object in the user's image.
 First, classify it into one of the following general categories: {WASTE_CATEGORIES_TEXT}.
 Second, provide the specific name of the item in BOTH Traditional Chinese and English.
+**NEW RULE: If the input is text (e.g., "Fired chicken", "炸雞"), analyze the text as if it were an object.**
 **NEW RULE: If the image contains a animal (cat, dog, bird, etc.), you MUST classify it as 'animal'.**
 **IMPORTANT RULES FOR TAIWAN (based on official guidelines):**
 - Liquids should be classified according to their containers
@@ -100,6 +98,21 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
             return None
+
+    def classify_text(self, text_input: str) -> Optional[dict]:
+            if not self.model:
+                logger.warning("Gemini model not loaded, text classification skipped.")
+                return None
+    
+            logger.info(f"Classifying text: {text_input}")
+            try:
+                # 將使用者的文字和提示詞一起發送
+                response = self.model.generate_content([SYSTEM_PROMPT, text_input])
+                return self._parse_gemini_response(response.text)
+    
+            except Exception as e:
+                logger.error(f"Error during Gemini API call for text: {e}")
+                return None
 
 
 
