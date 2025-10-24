@@ -109,7 +109,7 @@ Or, use the rich menu below for common features!""",
         'result_category': 'Category',
         'result_method': 'Disposal Method',
         'result_tips': 'Tips',
-        'error_unrecognized': 'Sorry, I couldn’t recognize the type of waste in this image.\nPlease make sure :\n• The image is clear\n• The waste item is the main focus\n• The lighting is sufficient\n\nTry taking a photo that shows the product label or type name instead.,
+        'error_unrecognized': 'Sorry, I couldn’t recognize the type of waste in this image.\nPlease make sure :\n• The image is clear\n• The waste item is the main focus\n• The lighting is sufficient\n\nTry taking a photo that shows the product label or type name instead.',
         'default_reply': 'Please upload a photo or type text for classification, or type /help to see all commands!',
         'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
         'location_searching': 'Searching for garbage trucks within 2 km of your location, please wait...',
@@ -598,6 +598,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
