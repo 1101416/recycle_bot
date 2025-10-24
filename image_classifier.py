@@ -60,59 +60,67 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error initializing Gemini API: {e}")
 
+    def _parse_gemini_response(self, response_text: str) -> Optional[dict]:
+        """
+        (共用函式) 解析 Gemini 的回應
+        """
+        match = re.search(r"category:\s*(\w+),\s*item_zh:\s*([^,]+),\s*item_en:\s*(.+)", response_text.strip())
+        
+        if match:
+            category = match.group(1).lower()
+            item_name_zh = match.group(2).strip()
+            item_name_en = match.group(3).strip()
+            
+            if category in Config.WASTE_CATEGORIES:
+                logger.info(f"Gemini API result: category='{category}', item_zh='{item_name_zh}', item_en='{item_name_en}'")
+                return {
+                    'category': category,
+                    'item_name_zh': item_name_zh,
+                    'item_name_en': item_name_en,
+                    'confidence': 0.95  # AI-based, assume high confidence
+                }
+            else:
+                 logger.warning(f"Gemini returned an invalid category: '{category}'. Full response: '{response_text}'")
+
+        logger.warning(f"Gemini API returned an unparsable response: '{response_text}'. Defaulting to 'other'.")
+        return {
+            'category': 'other',
+            'item_name_zh': '未知物品',
+            'item_name_en': 'Unknown Item',
+            'confidence': 0.5
+        }
+
     def classify_image(self, image_path: str) -> Optional[dict]:
         if not self.model:
-            logger.warning("Gemini model not loaded, classification skipped.")
+            logger.warning("Gemini model not loaded, image classification skipped.")
             return None
 
         logger.info(f"Classifying image: {image_path}")
         try:
             img = Image.open(image_path)
             response = self.model.generate_content([SYSTEM_PROMPT, img])
-            
-            # 更新正規表達式以解析新的回應格式
-            match = re.search(r"category:\s*(\w+),\s*item_zh:\s*([^,]+),\s*item_en:\s*(.+)", response.text.strip())
-            
-            if match:
-                category = match.group(1).lower()
-                item_name_zh = match.group(2).strip()
-                item_name_en = match.group(3).strip()
-                
-                if category in Config.WASTE_CATEGORIES:
-                    logger.info(f"Gemini API result: category='{category}', item_zh='{item_name_zh}', item_en='{item_name_en}'")
-                    return {
-                        'category': category,
-                        'item_name_zh': item_name_zh,
-                        'item_name_en': item_name_en,
-                        'confidence': 0.95
-                    }
-
-            logger.warning(f"Gemini API returned an unparsable response: '{response.text}'. Defaulting to 'other'.")
-            return {
-                'category': 'other',
-                'item_name_zh': '未知物品',
-                'item_name_en': 'Unknown Item',
-                'confidence': 0.5
-            }
+            return self._parse_gemini_response(response.text)
 
         except Exception as e:
-            logger.error(f"Error during Gemini API call: {e}")
+            logger.error(f"Error during Gemini API call for image: {e}")
             return None
 
+    # --- vvv 新增的函式 vvv ---
     def classify_text(self, text_input: str) -> Optional[dict]:
-            if not self.model:
-                logger.warning("Gemini model not loaded, text classification skipped.")
-                return None
-    
-            logger.info(f"Classifying text: {text_input}")
-            try:
-                # 將使用者的文字和提示詞一起發送
-                response = self.model.generate_content([SYSTEM_PROMPT, text_input])
-                return self._parse_gemini_response(response.text)
-    
-            except Exception as e:
-                logger.error(f"Error during Gemini API call for text: {e}")
-                return None
+        if not self.model:
+            logger.warning("Gemini model not loaded, text classification skipped.")
+            return None
+
+        logger.info(f"Classifying text: {text_input}")
+        try:
+            # 將使用者的文字和提示詞一起發送
+            response = self.model.generate_content([SYSTEM_PROMPT, text_input])
+            return self._parse_gemini_response(response.text)
+
+        except Exception as e:
+            logger.error(f"Error during Gemini API call for text: {e}")
+            return None
+
 
 
 
