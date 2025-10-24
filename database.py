@@ -105,7 +105,7 @@ def insert_default_data(conn):
         ('hazard', '廢農藥容器', '請至少清洗三次，並將清洗液重複噴灑利用，清除內容物後打包回收。', '可送交農會設置的回收點或資源回收車。', 'zh-TW'),
         ('hazard', '油漆,油漆溶劑,水泥漆,凡立水', '內容物若未使用完，應將蓋子蓋緊，交由資源回收車或洽詢清潔隊。不可倒入水槽。', '容器若已清空，則可依其材質（金屬、塑膠）進行回收。', 'zh-TW'),
         # --- 大型廢棄物 (Bulky) ---
-        ('bulky', '廢機動車輛,汽車,機車', '洽詢合法的廢車回收商進行報廢處理，可獲回收獎勵金。', '10年以上機車、7年以上汽車可申請獎勵金。', 'zh-TW'),
+        ('bulky', '廢機動車輛,汽車,機車', '廢機動車輛（汽車與機車）應洽詢合法的廢車回收商進行報廢與回收處理。完成合法報廢後，民眾可獲得少額回收獎勵金；若同時報廢老舊汽車或機車並購買電動車，還可能申請高額的汰舊換新補助。', '報廢前，民眾須先至監理站辦理車輛報廢登記。', 'zh-TW'),
         ('bulky', '堪用家具,彈簧床墊', '可與清潔隊各區隊約定收運時間到府回收。', '這是針對大型垃圾的專門服務。', 'zh-TW'),
         ('bulky', '自行車,腳踏車', '可與清潔隊約定收運時間，或交由自行車行回收。', '回收時可能需要交付切結書。', 'zh-TW'),
         ('bulky', '廢輪胎', '可由輪胎行、汽機車行、保修廠逆向回收或交由資源回收車回收。', '不包含特種車輛實心輪胎或飛機胎。', 'zh-TW'),
@@ -148,7 +148,7 @@ def insert_default_data(conn):
         ('hazard', 'Lighting sources, fluorescent tubes, circular fluorescent tubes, light bulbs, cold cathode lamps', 'Please pack them in a paper sleeve, do not break them, and hand them to a recycling truck or a lighting retailer for recycling.', 'Traditional light bulbs with a cap diameter under 2.6 cm are not recyclable.', 'en'),
         ('hazard', 'Mercury thermometers', 'Please pack it in its original case and hand it specifically to the personnel on the recycling truck.', 'Does not include laboratory thermometers.', 'en'),
         ('hazard', 'Used pesticide containers', 'Please rinse at least three times, reuse the rinsing liquid for spraying, empty the contents, and then bag for recycling.', 'Can be taken to collection points at local farmers\' associations or given to a recycling truck.', 'en'),
-        ('bulky', 'Scrap motor vehicles, cars, motorcycles', 'Contact a legal vehicle recycling company for disposal and receive a recycling incentive.', 'Incentives are available for scooters over 10 years old and cars over 7 years old.', 'en'),
+        ('bulky', 'Scrap motor vehicles, cars, motorcycles', 'End-of-life vehicles (including cars and motorcycles) should be properly disposed of through certified vehicle recycling companies. After completing the official scrapping process, owners may receive a small recycling reward. In addition, those who scrap old vehicles and purchase electric ones may be eligible for higher replacement subsidies.', 'Before recycling, the vehicle owner must first complete the deregistration process at the Motor Vehicles Office.', 'en'),
         ('bulky', 'Usable furniture, spring mattresses', 'You can schedule a door-to-door pickup with your local cleaning crew.', 'This is a dedicated service for large waste items.', 'en'),
         ('bulky', 'Bicycles', 'You can schedule a pickup with the cleaning crew or take it to a bicycle shop for recycling.', 'A signed affidavit may be required for recycling.', 'en'),
         ('bulky', 'Scrap tires', 'Can be returned to tire shops, vehicle repair shops for reverse recycling, or handed to a recycling truck.', 'Does not include solid tires for special vehicles or aircraft tires.', 'en'),
@@ -227,3 +227,4 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with separated expert and general rules!")
+
