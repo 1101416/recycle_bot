@@ -2,7 +2,7 @@ import os
 import tempfile
 import requests
 from linebot.models import (
-    TextMessage, TextSendMessage, ImageMessage, LocationMessage, PostbackEvent,
+    TextMessage, TextSendMessage, ImageMessage, LocationMessage, PostbackEvent, FollowEvent,
     TemplateSendMessage, CarouselTemplate, CarouselColumn,
     PostbackAction, MessageAction, URIAction, FlexSendMessage, BubbleContainer, BoxComponent, TextComponent,
     SeparatorComponent, IconComponent, ButtonComponent
@@ -31,7 +31,18 @@ TEXTS = {
         'result_tips': '小提醒',
         'error_unrecognized': '抱歉，無法識別這張圖片中的垃圾類型。\n請確保：\n• 圖片清晰\n• 垃圾在圖片中佔主要部分\n• 光線充足\n\n請重新拍照或嘗試其他圖片。',
         'default_reply': '請上傳垃圾照片進行分類，或輸入 /help 查看完整功能！',
+        'welcome_on_follow': """{Nickname} 您好～👋
+我是您的專屬環保小幫手 🤖 {AccountName}！
+以後，環保的大小事就交給我吧！💪
 
+我可以幫您：
+📸 拍照或打字，即時識別垃圾分類！
+📍 傳送位置，查詢附近的垃圾車與回收點！
+📰 推播最新的環保新聞與知識！
+
+請直接拍照上傳，或傳送您的位置！
+點選「功能說明」了解更多使用方式！
+🌏 想用其他語言，請點「語言選擇」👇""",
         'location_title': '📍 附近垃圾車資訊 (新北市)',
         'location_searching': '正在查詢您附近 2 公里內的新北市垃圾車，請稍候...',
         'location_not_found': '抱歉，目前在您附近 2 公里內找不到即時垃圾車資訊。',
@@ -40,6 +51,18 @@ TEXTS = {
         'news_no_items': '抱歉，目前沒有可顯示的新聞。'
     },
     'en': {
+        'welcome_on_follow': """Hi {Nickname}! 👋
+I'm {AccountName}, your personal eco-assistant! 🤖
+Leave the eco-tasks to me from now on! 💪
+
+I can help you:
+📸 Instantly identify waste by photo or text!
+📍 Find nearby garbage trucks & recycling points with your location!
+📰 Get the latest environmental news & tips!
+
+Just send a photo or your location to start!
+Click "Functions" to learn more about how to use me!
+🌏 Want another language? Click "Language" below! 👇""",
         'welcome_title': '🌱 AI Smart Waste Classification Assistant',
         'welcome_body': 'Welcome!\nI can help you:\n• 📸 Identify waste types from photos\n• 📍 Send location to find nearby garbage trucks\n\nPlease upload a photo or send your location!',
         'help': '📖 User Guide\n\n🔸 Photo Classification\nUpload a photo of waste for automatic identification.\n\n🔸 Location Service\nSend your location to find nearby garbage trucks.\n\n🔸 Text Commands\n• /help - Help\n• /language - Language Settings\n• /news - Latest announcements/news',
@@ -78,6 +101,53 @@ class LineMessageHandler:
 
     def _get_texts(self, lang_code):
         return TEXTS.get(lang_code, TEXTS['en'])
+
+
+    # 檔案: line_handler.py
+
+    def handle_follow_event(self, event):
+        """處理加好友事件"""
+        user_id = event.source.user_id
+        
+        # 取得使用者 LINE Profile
+        try:
+            profile = self.line_bot_api.get_profile(user_id)
+            nickname = profile.display_name
+        except Exception:
+            logger.warning(f"Could not get profile for user {user_id}")
+            nickname = "朋友" # 預設名稱
+        
+        # 取得或建立使用者資料 (這會使用 recycle_db.py 中的邏輯設定預設語言 'zh-TW')
+        self.recycle_db.get_or_create_user(user_id)
+        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
+        texts = self._get_texts(user_lang)
+        
+        # --- vvv 修改處 vvv ---
+        # *** 自動取得 Bot 顯示名稱 ***
+        try:
+            # 呼叫 API 取得機器人自己的資訊
+            bot_info = self.line_bot_api.get_bot_info()
+            account_name = bot_info.display_name
+        except Exception as e:
+            logger.warning(f"Could not get bot info automatically: {e}. Using default name.")
+            # 如果 API 呼叫失敗，才使用備用名稱
+            account_name = "GreenLine 智慧垃圾分類助理" 
+        
+        # 格式化歡迎訊息
+        welcome_text = texts['welcome_on_follow'].format(
+            nickname=nickname,
+            account_name=account_name
+        )
+        
+        # 回覆歡迎訊息
+        try:
+            self.line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=welcome_text)
+            )
+            logger.info(f"Sent welcome message to new user {user_id}")
+        except Exception as e:
+            logger.exception(f"Failed to reply to follow event: {e}")
 
     def handle_postback(self, event):
         user_id = event.source.user_id
@@ -431,6 +501,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
