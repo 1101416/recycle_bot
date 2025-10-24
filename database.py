@@ -112,6 +112,7 @@ def insert_default_data(conn):
         # ####################################################################################
         # ### --- 新增區塊：通用分類總則 (General Rules) --- ###
         # ####################################################################################
+        ('money', '金錢(貨幣)', '1. 現行流通貨幣 (民國89年起)：\n請勿丟棄！此為法定流通資產。\n\n2. 舊版新臺幣 (票面載明「臺灣銀行」)：\n請持至臺灣銀行各地分行，兌換成等值的現行流通券幣。', '• 舊版兌換範圍：所有載明「臺灣銀行」字樣的鈔券（紀念鈔除外），及民國68年以前的伍圓、壹圓硬幣。\n• 嚴重毀損的現行貨幣也可洽詢臺灣銀行鑑定。', 'zh-TW'),
         ('animal', '動物屍體', '包含寵物、流浪動物或野生禽鳥。請參閱詳細處理方式，切勿隨意丟棄。', '請勿徒手接觸，並聯繫專門單位處理。', 'zh-TW'),
         ('food', '廚餘', '生、熟食物或殘渣，請瀝乾水分後倒入廚餘回收桶。', '硬質的果核、貝殼等不可混入。', 'zh-TW'),
         ('paper', '紙類', '乾淨的紙張、紙箱、紙容器，請去除雜質、壓平後回收。', '髒污或複合材質的紙張(如衛生紙、感熱紙)為一般垃圾。', 'zh-TW'),
@@ -190,6 +191,7 @@ def insert_default_data(conn):
         # ####################################################################################
         # ### --- 新增區塊：通用分類總則 (General Rules) --- ###
         # ####################################################################################
+        ('money', 'Currency', '1. Current Circulating Currency (Central Bank issue, from 2000):\nDO NOT DISCARD! This is legal tender.\n\n2. Old NTD (Notes marked "Bank of Taiwan"):\nTake to any Bank of Taiwan branch to exchange for current currency.', '• Exchange scope: All notes marked "Bank of Taiwan" (except 50th anniv. plastic note) and 5 NTD/1 NTD coins from before 1979.', 'en'),
         ('animal', 'Animal Carcass', 'Includes pets, stray animals, or wild birds. Please refer to specific disposal methods and do not discard casually.', 'Do not touch with bare hands; contact specialized units.', 'en'), 
         ('food', 'Food Waste', 'Raw or cooked food scraps. Please drain excess liquid before putting into the food waste bin.', 'Do not mix in hard pits or shells.', 'en'),
         ('paper', 'Paper', 'Clean paper, cardboard, and paper containers. Please remove impurities, flatten, and recycle.', 'Soiled or composite paper (like tissues, thermal paper) is general waste.', 'en'),
@@ -217,6 +219,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with the latest user-provided expert rules!")
+
 
 
 
