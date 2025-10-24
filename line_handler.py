@@ -28,9 +28,9 @@ TEXTS = {
 直接上傳垃圾照片，我會自動識別垃圾類別並提供回收方式
 
 🔸 文字指令
-• 輸入/help - 查看幫助
-• 輸入/language - 顯示目前所支援的語言並提供選擇
-• 輸入/news - 環保新聞
+• 輸入 /help - 查看幫助
+• 輸入 /language - 顯示目前所支援的語言並提供選擇
+• 輸入 /news - 環保新聞
 • 輸入「欲做分類的垃圾名稱」 - 幫該垃圾做分類，如輸入：娃娃
 📍 位置功能
 • 傳送位置資訊可查詢附近垃圾車時間
@@ -91,9 +91,9 @@ Click "Functions" to learn more about how to use me!
 Upload a photo of waste, and I will automatically identify the category and provide recycling instructions.
 
 🔸 Text Commands
-• enter/help - Show this help message
-• enter/language - Show supported languages and let you choose
-• enter/news - Get environmental news
+• enter /help - Show this help message
+• enter /language - Show supported languages and let you choose
+• enter /news - Get environmental news
 • Type the name of an item - I will classify it
 
 📍 Location Features
@@ -594,6 +594,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
