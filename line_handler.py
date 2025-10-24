@@ -22,7 +22,25 @@ TEXTS = {
     'zh-TW': {
         'welcome_title': '🌱 AI 智能垃圾分類助手',
         'welcome_body': '歡迎使用！\n我可以幫您：\n• 📸 拍照識別垃圾類型\n• 📍 傳送位置查詢附近垃圾車\n\n請拍照上傳或傳送您的位置！',
-        'help': '📖 使用說明\n\n🔸 拍照分類\n直接上傳垃圾照片，我會自動識別並提供回收方式。\n\n🔸 位置查詢\n傳送您的位置資訊，我會尋找附近的垃圾車。\n\n🔸 文字指令\n• /help - 查看幫助\n• /language - 語言設定\n• /news - 最新相關公告/新聞',
+        'help': """📖 使用說明
+
+📸 拍照分類
+直接上傳垃圾照片，我會自動識別垃圾類別並提供回收方式
+
+🔸 文字指令
+• 輸入/help - 查看幫助
+• 輸入/language - 顯示目前所支援的語言並提供選擇
+• 輸入/news - 環保新聞
+• 輸入「欲做分類的垃圾名稱」 - 幫該垃圾做分類，如輸入：娃娃
+📍 位置功能
+• 傳送位置資訊可查詢附近垃圾車時間
+• 輸入/clothes並傳送位置資訊可查詢附近舊衣回收箱
+
+🌏 目前的語言支援
+支援繁體中文、英文
+
+或點選下方選單使用常用功能！""",
+        
         'lang_selected': '🌎語言已設定為：繁體中文',
         'result_title': '🔍 垃圾分類結果',
         'result_item': '辨識物品',
@@ -43,6 +61,7 @@ TEXTS = {
 請直接拍照上傳，或傳送您的位置！
 點選「功能說明」了解更多使用方式！
 🌏 想用其他語言，請點「語言選擇」👇""",
+        
         'location_title': '📍 附近垃圾車資訊 (新北市)',
         'location_searching': '正在查詢您附近 2 公里內的新北市垃圾車，請稍候...',
         'location_not_found': '抱歉，目前在您附近 2 公里內找不到即時垃圾車資訊。',
@@ -65,8 +84,26 @@ Click "Functions" to learn more about how to use me!
 🌏 Want another language? Click "Language" below! 👇""",
         'welcome_title': '🌱 AI Smart Waste Classification Assistant',
         'welcome_body': 'Welcome!\nI can help you:\n• 📸 Identify waste types from photos\n• 📍 Send location to find nearby garbage trucks\n\nPlease upload a photo or send your location!',
-        'help': '📖 User Guide\n\n🔸 Photo Classification\nUpload a photo of waste for automatic identification.\n\n🔸 Location Service\nSend your location to find nearby garbage trucks.\n\n🔸 Text Commands\n• /help - Help\n• /language - Language Settings\n• /news - Latest announcements/news',
-        'lang_selected': '🌎Language has been set to: English',
+        'help': """📖 User Guide
+
+📸 Photo Classification
+Upload a photo of waste, and I will automatically identify the category and provide recycling instructions.
+
+🔸 Text Commands
+• enter/help - Show this help message
+• enter/language - Show supported languages and let you choose
+• enter/news - Get environmental news
+• Type the name of an item - I will classify it
+
+📍 Location Features
+• Send your location to find nearby garbage truck schedules
+• enter /clothes and then send your location to find nearby clothing donation boxes
+
+🌏 Supported Languages
+Supports Traditional Chinese and English.
+
+Or, use the rich menu below for common features!""",
+        
         'result_title': '🔍 Classification Result',
         'result_item': 'Identified Item',
         'result_category': 'Category',
@@ -501,6 +538,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
