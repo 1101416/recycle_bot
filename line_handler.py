@@ -468,8 +468,8 @@ class LineMessageHandler:
 
     def _send_language_menu(self, reply_token):
         carousel_template = CarouselTemplate(columns=[
-            CarouselColumn(thumbnail_image_url='https://i.imgur.com/CoN90hA.png', title='繁體中文', text='選擇繁體中文介面', actions=[PostbackAction(label='選擇', data='lang_zh-TW')]),
-            CarouselColumn(thumbnail_image_url='https://i.imgur.com/4l6A0p5.png', title='English', text='Select English interface', actions=[PostbackAction(label='Select', data='lang_en')])
+            CarouselColumn(thumbnail_image_url='https://github.com/1101416/recycle_bot/blob/main/language.png?raw=true', title='繁體中文', text='選擇繁體中文介面', actions=[PostbackAction(label='選擇', data='lang_zh-TW')]),
+            CarouselColumn(thumbnail_image_url='https://github.com/1101416/recycle_bot/blob/main/language.png?raw=true', title='English', text='Select English interface', actions=[PostbackAction(label='Select', data='lang_en')])
         ])
         template_message = TemplateSendMessage(alt_text='語言選擇 / Language Selection', template=carousel_template)
         self.line_bot_api.reply_message(reply_token, template_message)
@@ -599,6 +599,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
