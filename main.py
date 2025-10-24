@@ -1,7 +1,7 @@
 from flask import Flask, request, abort, jsonify
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageMessage, LocationMessage, PostbackEvent
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageMessage, LocationMessage, PostbackEvent,FollowEvent
 import os
 import logging
 from config import Config
@@ -158,6 +158,18 @@ def handle_location_message(event):
                 )
         except Exception:
             logger.exception("Failed to send error reply for location message")
+            
+@handler.add(FollowEvent)
+def handle_follow(event):
+    """處理加好友/解除封鎖事件"""
+    try:
+        if not message_handler:
+            logger.error("message_handler not initialized; cannot process follow event.")
+            return
+        # 呼叫 line_handler.py 中的新方法
+        message_handler.handle_follow_event(event)
+    except Exception as e:
+        logger.exception(f"Error handling follow event: {e}")
 
 @app.route("/test", methods=["GET"])
 def test():
@@ -206,3 +218,4 @@ if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     # 關閉 debug 模式以避免在 production 泄露細節
     app.run(host='0.0.0.0', port=port, debug=False)
+
