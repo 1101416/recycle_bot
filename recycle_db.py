@@ -1,3 +1,5 @@
+# 檔案: recycle_db.py
+# (此版本已優化，使用兩個資料表進行搜尋)
 
 import sqlite3
 import json
@@ -12,130 +14,76 @@ class RecycleDatabase:
     def __init__(self, db_path='database.db'):
         self.db_path = db_path
     
-    def get_waste_info(self, category: str, language: str = 'zh-TW') -> Optional[Dict]:
-        """
-        (智慧通用查詢 v2.1 - 已修正 Bug 2)
-        依據 category 和 language，查詢通用規則。
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                category_name_zh = Config.WASTE_CATEGORIES.get(category)
-                if not category_name_zh: return None
+    # --- vvv 舊的 get_waste_info 函式已被刪除 vvv ---
+    # (因為它的邏輯已合併到 get_specific_waste_info 中)
+    # --- ^^^ 舊的 get_waste_info 函式已被刪除 ^^^ ---
 
-                result = None
-                
-                if language == 'en':
-                    cursor.execute(
-                        "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND language = 'en'", (category,)
-                    )
-                    all_cat_rules = cursor.fetchall()
-                    
-                    # --- vvv 修正 Bug 2 vvv ---
-                    # 修正：使用 'in' 進行彈性比對 (例如 "ewaste" in "e-waste")
-                    # 而不是 '==' ( "ewaste" == "e-waste" -> False)
-                    for rule in all_cat_rules:
-                        if category.lower() in rule[1].lower(): 
-                            result = rule
-                            break
-                    # --- ^^^ 修正 Bug 2 ^^^ ---
-                
-                else: # 中文查詢
-                     cursor.execute(
-                        "SELECT category, name, disposal_method, tips FROM waste_info WHERE category = ? AND name = ? AND language = 'zh-TW' LIMIT 1",
-                        (category, category_name_zh)
-                    )
-                     result = cursor.fetchone()
-
-
-                if result:
-                    return {
-                        'category': result[0],
-                        'category_name': result[1],
-                        'category_name_zh': category_name_zh,
-                        'disposal_method': result[2],
-                        'tips': result[3]
-                    }
-                
-                logger.warning(f"Could not find a generic rule for category '{category}' in language '{language}'.")
-                return None
-        except Exception as e:
-            logger.error(f"Error getting general waste info for category '{category}': {e}")
+    def _format_rule_response(self, rule_tuple: Tuple, category_key: str) -> Optional[Dict]:
+        """(輔助函式) 將資料庫回傳的 tuple 格式化為 dict"""
+        if not rule_tuple:
             return None
+        
+        # 從 Config 獲取標準的中文名稱 (e.g., 'ewaste' -> '電子廢棄物')
+        category_name_zh = Config.WASTE_CATEGORIES.get(category_key, '其他')
+        
+        return {
+            'category': rule_tuple[0],
+            'category_name': rule_tuple[1],      # 這是規則中的名稱 (e.g., "雜誌,影印紙..." 或 "紙類")
+            'category_name_zh': category_name_zh,  # 這是分類的標準名稱 (e.g., "紙類")
+            'disposal_method': rule_tuple[2],
+            'tips': rule_tuple[3]
+        }
 
     def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Optional[Dict]:
         """
-        (智慧查詢引擎 v3.1 - 已修正 Bug 1)
-        使用多關鍵字匹配，並動態排除所有通用規則
+        (智慧查詢引擎 v4.0 - 已優化)
+        階段 1: 搜尋 `waste_info_expert` 資料表
+        階段 2: 若失敗，搜尋 `waste_info_general` 資料表
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT category, name, disposal_method, tips FROM waste_info WHERE language = ?", (language,))
-                all_rules = cursor.fetchall()
                 
-                generic_names_zh = list(Config.WASTE_CATEGORIES.values())
-                # (英文的通用規則名稱在 database.py 中不統一，例如 "E-Waste", "Food Waste")
-                # 我們假設英文通用規則的 name 欄位都包含 Waste 或 'Paper', 'Plastic', 'Metal', 'Glass', 'Textile'
-                generic_names_en = [cat.capitalize() for cat in Config.WASTE_CATEGORIES.keys()] + ["Waste"]
-
-                best_match = None
+                # --- 階段 1: 搜尋「專家規則」 ---
+                
+                # 僅撈出專家規則
+                cursor.execute("SELECT category, name_keywords, disposal_method, tips FROM waste_info_expert WHERE language = ?", (language,))
+                expert_rules = cursor.fetchall()
+                
                 item_to_check = item_name if language == 'zh-TW' else item_name.lower()
                 
-                for rule in all_rules:
+                for rule in expert_rules:
                     db_keywords_str = rule[1]
-                    
-                    # 智慧排除：
-                    # 1. 排除中文通用規則 (e.g., "紙類", "廚餘")
-                    if db_keywords_str in generic_names_zh:
-                        continue
-                    
-                    # 2. 排除英文通用規則 (e.g., "Paper", "E-Waste")
-                    is_generic_en = False
-                    if language == 'en':
-                        for gen_name in generic_names_en:
-                            if gen_name in db_keywords_str:
-                                is_generic_en = True
-                                break
-                    if is_generic_en:
-                        continue
-                    
-                    
                     db_keywords = [kw.strip().lower() if language == 'en' else kw.strip() for kw in db_keywords_str.split(',')]
                     
                     for keyword in db_keywords:
-                        
-                        # --- vvv 修正 Bug 1 vvv ---
-                        # 修正：檢查 AI 辨識的物品 (item_to_check) 是否為 資料庫關鍵字 (keyword) 的一部分
-                        # (例如： if "battery" in "used batteries")
                         if item_to_check in keyword:
-                        # --- ^^^ 修正 Bug 1 ^^^ ---
-                            best_match = rule
-                            break
-                    if best_match:
-                        break
+                            logger.info(f"Expert rule found for '{item_name}', using rule for keywords '{rule[1]}'.")
+                            # 找到專家規則，格式化並回傳
+                            return self._format_rule_response(rule, rule[0]) # rule[0] 是該規則的 category
 
-                if best_match:
-                    logger.info(f"Expert rule found for '{item_name}', using rule for keywords '{best_match[1]}'.")
-                    correct_category = best_match[0]
-                    category_name_zh = Config.WASTE_CATEGORIES.get(correct_category)
-                    category_name_display = best_match[1].split(',')[0]
-
-                    return {
-                        'category': correct_category,
-                        'category_name': category_name_display,
-                        'category_name_zh': category_name_zh,
-                        'disposal_method': best_match[2],
-                        'tips': best_match[3]
-                    }
+                # --- 階段 2: 搜尋「通用規則」 (後備方案) ---
                 
                 logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
-                # 如果找不到特定規則，回傳「通用規則」（現在 Bug 2 已修復，這裡會正常運作）
-                return self.get_waste_info(category, language)
+                
+                # 直接使用 AI 提供的 category 進行一次高效率的通用規則查詢
+                cursor.execute(
+                    "SELECT category, name, disposal_method, tips FROM waste_info_general WHERE category = ? AND language = ? LIMIT 1",
+                    (category, language)
+                )
+                general_rule = cursor.fetchone()
+
+                if general_rule:
+                    # 找到通用規則，格式化並回傳
+                    return self._format_rule_response(general_rule, category)
+                
+                # 如果連通用規則都找不到 (理論上不該發生)
+                logger.error(f"CRITICAL: No general rule found for category '{category}' in language '{language}'.")
+                return None
+                
         except Exception as e:
             logger.error(f"Error getting specific waste info: {e}")
-            return self.get_waste_info(category, language)
+            return None
 
     # --- 以下為使用者資料相關函式，維持不變 ---
     
