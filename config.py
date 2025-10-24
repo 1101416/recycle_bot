@@ -43,7 +43,9 @@ class Config:
         'ewaste': '電子廢棄物',
         'hazard': '有害垃圾',
         'bulky': '大型廢棄物',
+        'animal': '動物屍體',
         'other': '其他/一般垃圾'
     }
+
 
 
