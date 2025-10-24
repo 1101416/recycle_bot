@@ -1,3 +1,6 @@
+# 檔案: database.py
+# (此版本已修正 UNIQUE constraint 錯誤)
+
 import sqlite3
 import logging
 from datetime import datetime
@@ -11,15 +14,13 @@ def init_database():
         with sqlite3.connect('database.db') as conn:
             cursor = conn.cursor()
             
-            # --- vvv 修改處：建立兩個獨立的表格 vvv ---
-            
-            # 1. 使用者資料表 (不變)
+            # 1. 使用者 (不變)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     user_id TEXT PRIMARY KEY, language TEXT, created_at TIMESTAMP,
                     last_active TIMESTAMP, eco_points INTEGER)
             ''')
-            # 2. 分類紀錄資料表 (不變)
+            # 2. 分類紀錄 (不變)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS classifications (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category TEXT, confidence REAL,
@@ -30,20 +31,27 @@ def init_database():
             # (舊的 waste_info 資料表，如果存在則刪除，以便移轉)
             cursor.execute("DROP TABLE IF EXISTS waste_info")
 
-            # 3. 專家規則資料表 (關鍵字搜尋用)
+            # 3. 專家規則資料表
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS waste_info_expert (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, name_keywords TEXT, 
                     disposal_method TEXT, tips TEXT, language TEXT)
             ''')
             
-            # 4. 通用規則資料表 (後備/通用查詢用)
+            # --- vvv 修正處 vvv ---
+            # 4. 通用規則資料表
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS waste_info_general (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT UNIQUE, name TEXT, 
-                    disposal_method TEXT, tips TEXT, language TEXT)
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                    category TEXT, 
+                    name TEXT, 
+                    disposal_method TEXT, 
+                    tips TEXT, 
+                    language TEXT,
+                    UNIQUE(category, language) 
+                )
             ''')
-            # --- ^^^ 修改處 ^^^ ---
+            # --- ^^^ 修正處 ^^^ ---
 
             conn.commit()
             logger.info("Database tables created or already exist (expert/general separated).")
@@ -59,7 +67,7 @@ def insert_default_data(conn):
     """(最新版) 將規則分別插入 expert 和 general 資料表"""
     cursor = conn.cursor()
     
-    # --- vvv 1. 專家規則列表 (Expert Rules) vvv ---
+    # --- 1. 專家規則列表 (Expert Rules) ---
     default_expert_rules = [
         # === 繁體中文規則 (zh-TW) ===
         # --- 紙類 (Paper) ---
@@ -91,7 +99,7 @@ def insert_default_data(conn):
         ('ewaste', '資訊物品,筆記型電腦,監視器,螢幕,主機板,硬式磁碟機,電源供應器,機殼,印表機,不斷電系統主機,鍵盤,平板電腦,外接硬碟,行動電源', '可交給資源回收車或送至資訊商品販賣業者逆向回收。', '電腦零件、滑鼠、滑鼠墊等周邊不可回收。', 'zh-TW'),
         ('ewaste', '光碟片,CD,VCD,DVD', '請收集後裝成一袋交付回收。', '不含外殼，外殼若為塑膠材質可另行回收。', 'zh-TW'),
         # --- 有害垃圾 (Hazardous) ---
-        ('hazard', '廢電池,水銀電池,鹼性電池,鋰電池,鎳鎘電池,充電電池,鈕扣型電池,鉛蓄電池', '交給資源回收車，或連鎖超商、量販店等販賣業者逆向回收。', '車用鉛蓄電池可交由汽機車行或保修廠回收。', 'zh-TW'),
+        ('hazard', '廢電池,水銀電池,鹼性電池,鋰電池,鎳鎘電池,充電電池,鈕扣型電池,鉛蓄電池', '交給資源回收車，或連鎖超商、量販店等販賣業者逆向回收。', '車用鉛蓄電池可交由汽_機車行或保修廠回收。', 'zh-TW'),
         ('hazard', '照明光源,日光燈,環管日光燈,燈泡,冷陰極燈', '可先用紙套裝好，不要打破，交給資源回收車或照明光源販賣業者回收。', '燈帽直徑2.6公分以下的傳統燈泡不可回收。', 'zh-TW'),
         ('hazard', '水銀體溫計', '請使用原包裝盒打包好，特別交付給資源回收車隨車人員。', '不包含實驗室用的溫度計。', 'zh-TW'),
         ('hazard', '廢農藥容器', '請至少清洗三次，並將清洗液重複噴灑利用，清除內容物後打包回收。', '可送交農會設置的回收點或資源回收車。', 'zh-TW'),
@@ -112,59 +120,47 @@ def insert_default_data(conn):
         ('animal', '動物屍體,寵物,寵物屍體,寵物遺體,流浪動物,流浪狗,流浪貓,街頭動物屍體,路倒動物,野生禽鳥,鳥屍體,死掉的鳥,貓,狗,鳥,屍體,遺體', '1. 自家寵物死亡：\n委託動物醫院、寵物業者協助處理（火化），或依《廢棄物清理法》自行包裝後交給清潔隊。\n\n2. 街頭流浪動物死亡：\n撥打1999通報專線或聯繫當地環保局/動保處。\n\n3. 野生禽鳥屍體：\n應立即撥打當地政府專線通報（如1999）。', '• 若交給清潔隊，請務必妥善密封包裝。\n• 處理流浪/野生動物，請勿徒手接觸。', 'zh-TW'),
 
         # === English Rules (en) ===
-        # --- Paper ---
+        # ... (所有英文專家規則保持不變) ...
         ('paper', 'Magazines, copy paper, wrapping paper, paper tea canisters, memo pads, calendars, paper bags, recycled paper, newspapers, computer paper, flyers, toilet paper rolls, phone books, wall calendars, cardboard boxes, corrugated paper, books, shopping bags, envelopes, business cards, notebooks, fruit protection bags', 'Please remove non-paper items like plastic covers, tape, coils, and staples first. Flatten and bundle for recycling.', 'For fruit protection bags, please remove strings, branches, and tape first.', 'en'),
         ('paper', 'Paper containers, Tetra Paks, Fresh House cartons, paper tableware, paper cups, paper bowls, paper plates, paper boxes', 'Empty the contents, wipe or rinse briefly, then flatten for recycling.', 'For cartons or Tetra Paks, remove the straw before flattening.', 'en'),
         ('other', 'Diapers, used tissues, sanitary pads, carbon paper, wax paper, release paper (sticker backing), transfer paper, thermal paper (e-receipts), sandpaper, glossy plastic-coated paper, soiled paper, firecracker scraps', 'These are all non-recyclable composite materials or soiled paper. Please bag them and hand them to the garbage truck.', 'Thermal paper (like e-receipts) contains chemicals and is not recyclable.', 'en'),
-        # --- Metal ---
         ('metal', 'Iron containers, cans, window frames, plates, rods, cages, boxes, railings, pencil cases, doors, shelves, hooks, buckets, bars, bells, cookware, cabinets, wires, thumbtacks, nails, bowls, blocks, chains, sheets, cups, basins, hammerheads, knife blades, umbrella frames, cookie tins, rebar', 'Please empty the contents and rinse lightly before recycling.', 'Composite materials like umbrella fabric and cushions must be removed; only recycle the frame.', 'en'),
         ('metal', 'Aluminum containers, cans, pots, basins, window frames, alloy wheels', 'Empty the contents, rinse lightly, and flatten for recycling.', 'Keep them dry and clean.', 'en'),
         ('metal', 'Copper-clad wires, stainless steel products, metal staplers, metal vegetable baskets, metal scissors, metal spoons, forks, keys, door locks, metal hangers, copper products, stainless steel gas stoves, steel rims', 'Hand them directly to the recycling truck.', 'The outer plastic sheath of wires does not need to be stripped.', 'en'),
         ('hazard', 'Gas cylinders, fire extinguishers, propane tanks', 'Should be returned to the original vendor or taken to a gas company/inspection site for handling.', 'These are pressurized containers. Do not handle them yourself or give them to the cleaning crew to avoid danger.', 'en'),
         ('other', 'Fuses, telephone lines, network cables', 'These items cannot be effectively recycled at present. Please dispose of them as general waste.', 'Although they contain metal, they are not recycled due to excessive impurities and high processing costs.', 'en'),
-        # --- Plastic ---
         ('plastic', 'Plastic containers, PET bottles, PVC bottles, PP cups, PE bottles, PS bottles, Yakult bottles, plastic boxes, basins, tables, chairs, CDs/DVDs, plastic folders, food storage containers, face wash basins, flower pots, acrylics, packaging film, plastic pipes, glue bottles, plastic baskets, plastic hangers, water buckets, helmets, videotapes, cassette tapes, plastic toys, disposable plastic tableware, styrofoam tableware, fresh food trays', 'Please empty the contents and rinse lightly before recycling.', 'Clean styrofoam tableware or fresh food trays are recyclable.', 'en'),
         ('plastic', 'Clean plastic bags', 'Empty any trash from the bag, tie it, and collect them in one bag for recycling.', 'Only clean, single-material plastic bags are recycled.', 'en'),
         ('plastic', 'Clean packaging styrofoam, fish boxes, ice cream boxes, cake boxes, electronic appliance packaging materials', 'Please remove contents, tape, wood, nails, etc., and rinse clean first.', 'Styrofoam used in construction is not recyclable.', 'en'),
         ('other', 'Plastic film, chemical fiber items, plastic sheets, resin, car seats, lamination film, floor mats, cling wrap, cushions, foam, travel bags, tape, raincoats, ballpoint pens, straws, feed bags, records, brushes, camera film, whiteboard erasers, plastic pencil cases, chopsticks, toothpicks, dental floss, rubber products', 'These are all non-recyclable composite or small-sized items. Please dispose of them as general waste.', 'Excluding scrap tires, which should be recycled separately.', 'en'),
         ('other', 'Dirty plastic bags, plastic bags with an inner foil layer, tea bags, snack bags', 'These types of composite or dirty plastic bags are not recyclable. Please dispose of them as general waste.', 'The criteria is whether the inner layer of the bag is silver or made of another material.', 'en'),
-        # --- Glass ---
         ('glass', 'Perfume, Perfume Bottle', 'The "contents" and "empty bottle" must be handled separately. 1. Contents Disposal: Absorb the liquid with a cloth or paper towel. After it evaporates, throw the absorbent material into "General Waste". 2. Bottle Recycling: Recycle the clean, empty bottle based on its material (usually glass).', 'IMPORTANT: Do not pour liquid perfume down the sink or toilet. For aerosol cans, ensure they are completely empty in a ventilated area before recycling as "Metal".', 'en'),
         ('glass', 'Glass containers, glass bottles, wine bottles, glass plates, glass cups, glass bowls, glass candlesticks, window glass, fish tanks', 'Remove lids and straws, empty the contents, and rinse lightly before recycling.', 'Please wrap broken glass in a cardboard box or newspaper and label it as "broken glass" to protect cleaning personnel.', 'en'),
         ('other', 'Insulated glass, car windshields, fireproof glass, glass mats, lighting fixtures, mirrors', 'Due to different material compositions, these cannot be recycled with regular glass. Please dispose of them as general waste or consult the cleaning crew.', 'These are tempered or specially treated glass.', 'en'),
-        # --- Textile ---
         ('textile', 'Old clothes, tops, pants, skirts, dresses, jackets, suits', 'Items must be wearable. Please wash them, bag them, and hand them to a recycling truck or place in a clothing donation bin.', 'Undergarments are not recycled for hygiene reasons. Clothes must be clean, undamaged, and free of stains or odors.', 'en'),
         ('other', 'Pillows, quilts, bed sheets, carpets, socks, shoes, leather clothes, underwear, stuffed animals, curtains, yarn, belts, bags, hats, rags', 'These items are not recyclable due to hygiene, material, or damage. Please dispose of them as general waste.', 'Shoes, bags, and stuffed animals in good, functional condition can be exchanged at flea markets.', 'en'),
-        # --- E-waste ---
         ('ewaste', 'Large home appliances, TVs, refrigerators, washing machines, air conditioners, photocopiers, stereos, range hoods', 'Can be returned to the retailer for reverse recycling or call your local cleaning crew to schedule a pickup.', 'Please empty the items as much as possible before recycling.', 'en'),
         ('ewaste', 'Small home appliances, mobile phones, electric kettles, induction cookers, spin dryers, rice cookers, water dispensers, microwaves, dryers, hair dryers, ovens, electric fans, heaters, dish dryers, coffee makers, cassette players, fax machines, VCD/DVD players, VCRs, chargers', 'Hand them directly to the recycling truck.', 'Please remove batteries and erase personal data before recycling.', 'en'),
         ('ewaste', 'IT equipment, laptops, monitors, screens, motherboards, hard drives, power supplies, computer cases, printers, UPS systems, keyboards, tablets, external hard drives, power banks', 'Can be handed to a recycling truck or returned to an IT product retailer for reverse recycling.', 'Peripherals like computer parts, mice, and mouse pads are not recyclable.', 'en'),
         ('ewaste', 'CDs, VCDs, DVDs', 'Please collect them in a bag before handing them over for recycling.', 'This does not include the case; plastic cases can be recycled separately.', 'en'),
-        # --- Hazardous ---
         ('hazard', 'Paint, Paint Thinner, Varnish', 'If there is leftover content, seal the can tightly and hand it to a recycling truck or contact the cleaning crew. Do not pour down the drain.', 'If the container is empty, it can be recycled based on its material (metal, plastic).', 'en'),
         ('hazard', 'Used batteries, mercury batteries, alkaline batteries, lithium batteries, nickel-cadmium batteries, rechargeable batteries, button cell batteries, lead-acid batteries', 'Hand over to a recycling truck or return to retailers like convenience stores or hypermarkets for reverse recycling.', 'Lead-acid batteries from vehicles can be returned to scooter/car repair shops.', 'en'),
         ('hazard', 'Lighting sources, fluorescent tubes, circular fluorescent tubes, light bulbs, cold cathode lamps', 'Please pack them in a paper sleeve, do not break them, and hand them to a recycling truck or a lighting retailer for recycling.', 'Traditional light bulbs with a cap diameter under 2.6 cm are not recyclable.', 'en'),
         ('hazard', 'Mercury thermometers', 'Please pack it in its original case and hand it specifically to the personnel on the recycling truck.', 'Does not include laboratory thermometers.', 'en'),
         ('hazard', 'Used pesticide containers', 'Please rinse at least three times, reuse the rinsing liquid for spraying, empty the contents, and then bag for recycling.', 'Can be taken to collection points at local farmers\' associations or given to a recycling truck.', 'en'),
-        # --- Bulky ---
         ('bulky', 'Scrap motor vehicles, cars, motorcycles', 'Contact a legal vehicle recycling company for disposal and receive a recycling incentive.', 'Incentives are available for scooters over 10 years old and cars over 7 years old.', 'en'),
         ('bulky', 'Usable furniture, spring mattresses', 'You can schedule a door-to-door pickup with your local cleaning crew.', 'This is a dedicated service for large waste items.', 'en'),
         ('bulky', 'Bicycles', 'You can schedule a pickup with the cleaning crew or take it to a bicycle shop for recycling.', 'A signed affidavit may be required for recycling.', 'en'),
         ('bulky', 'Scrap tires', 'Can be returned to tire shops, vehicle repair shops for reverse recycling, or handed to a recycling truck.', 'Does not include solid tires for special vehicles or aircraft tires.', 'en'),
         ('bulky', 'Ceramics, bricks, tiles, discarded pottery, porcelain, bowls, plates, vases, toilets, sinks, roof tiles', 'Hand small quantities directly to the recycling truck; for large quantities, please schedule a pickup with the cleaning crew.', 'Please sort and bag them first.', 'en'),
-        # --- Food Waste ---
         ('food', 'Raw and cooked food scraps, leftovers, vegetable roots, fruit peels, fish bones, meat bones, fallen leaves, chicken, fried chicken, pork, beef, food', 'Drain excess water before putting into the food waste bin.', 'Hard pits (mango, peach), shells, bamboo shoot husks, and sugarcane peels should be treated as compost or general waste.', 'en'),
-        # --- Other ---
         ('other', 'Lubricating oil', 'Should be taken to recycling stations at scooter shops, car repair shops, or gas stations.', 'Do not pour down the sink or mix with other recyclables.', 'en'),
         ('other', 'Cooking oil, used cooking oil, expired cooking oil', 'Please collect it in a plastic container first, then hand it to the recycling truck.', 'Never pour it down the drain as it will cause severe blockages.', 'en'),
         ('other', 'Heating packs', 'Excluding the plastic outer packaging, it can be handed to the recycling truck.', 'This belongs to other recyclable items.', 'en'),
-        # --- Animal Carcass ---
         ('animal', 'Animal carcass, pet death, pet body, stray animal, roadkill, wild bird, dead bird, cat, dog, bird, dead body', '1. Own Pet Death:\nContact a veterinarian or pet cremation service, OR package the body securely and hand it to the sanitation crew.\n\n2. Stray Animal Death (Roadkill):\nCall the 1999 hotline or contact your local Environmental/Animal Protection Office.\n\n3. Wild Bird Carcass:\nImmediately call your local government hotline (e.g., 1999).', '• If handing to sanitation crew, ensure it is securely sealed.\n• Do not touch stray or wild animals with bare hands.', 'en'),
     ]
-    # --- ^^^ 1. 專家規則列表 (Expert Rules) 結束 ^^^ ---
 
-
-    # --- vvv 2. 通用規則列表 (General Rules) vvv ---
+    # --- 2. 通用規則列表 (General Rules) ---
     default_general_rules = [
         # (category, name, disposal_method, tips, language)
         # --- 繁體中文 (zh-TW) ---
@@ -195,14 +191,17 @@ def insert_default_data(conn):
         ('money', 'Currency', '1. Current Circulating Currency (Central Bank issue, from 2000):\nDO NOT DISCARD! This is legal tender.\n\n2. Old NTD (Notes marked "Bank of Taiwan"):\nTake to any Bank of Taiwan branch to exchange for current currency.', '• Exchange scope: All notes marked "Bank of Taiwan" (except 50th anniv. plastic note) and 5 NTD/1 NTD coins from before 1979.', 'en'),
         ('other', 'Other/General Waste', 'Items that cannot be recycled belong here. Please bag them for the garbage truck.', 'Includes soiled recyclables and composite material items.', 'en'),
     ]
-    # --- ^^^ 2. 通用規則列表 (General Rules) 結束 ^^^ ---
 
     try:
-        # --- vvv 3. 將規則插入對應的資料表 vvv ---
+        # --- 3. 將規則插入對應的資料表 ---
         
         # 建立索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_expert_lang ON waste_info_expert (language)")
-        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_general_cat_lang ON waste_info_general (category, language)")
+        
+        # --- vvv 修正處 vvv ---
+        # (將 UNIQUE 索引移到 CREATE TABLE 語句中，確保新資料庫也能正確建立)
+        # cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_general_cat_lang ON waste_info_general (category, language)")
+        # --- ^^^ 修正處 ^^^ ---
 
         # 清空舊資料
         cursor.execute("DELETE FROM waste_info_expert")
@@ -217,10 +216,12 @@ def insert_default_data(conn):
         logger.info(f"Inserted {cursor.rowcount} general rules.")
 
         conn.commit()
-        # --- ^^^ 3. 插入完成 ^^^ ---
         
     except Exception as e:
         logger.error(f"Error inserting default data: {e}")
+        # 如果是因為 UNIQUE 限制導致插入失敗，記錄更詳細的錯誤
+        if "UNIQUE constraint failed" in str(e):
+            logger.error(f"Database schema constraint failed. Did you update the CREATE TABLE statements in init_database? Error: {e}")
         raise
 
 if __name__ == "__main__":
