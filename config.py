@@ -44,8 +44,10 @@ class Config:
         'hazard': '有害垃圾',
         'bulky': '大型廢棄物',
         'animal': '動物屍體',
+        'money': '金錢(貨幣)',
         'other': '其他/一般垃圾'
     }
+
 
 
 
