@@ -22,7 +22,6 @@ TEXTS = {
     'zh-TW': {
         'welcome_title': '🌱 AI 智能垃圾分類助手',
         'welcome_body': '歡迎使用！\n我可以幫您：\n• 📸 拍照識別垃圾類型\n• 📍 傳送位置查詢附近垃圾車\n\n請拍照上傳或傳送您的位置！',
-        'lang_selected': '🌎Language has been set to: English',
         'help': """📖 使用說明
 
 📸 拍照分類
@@ -85,6 +84,7 @@ Click "Functions" to learn more about how to use me!
 🌏 Want another language? Click "Language" below! 👇""",
         'welcome_title': '🌱 AI Smart Waste Classification Assistant',
         'welcome_body': 'Welcome!\nI can help you:\n• 📸 Identify waste types from photos\n• 📍 Send location to find nearby garbage trucks\n\nPlease upload a photo or send your location!',
+        'lang_selected': '🌎Language has been set to: English',
         'help': """📖 User Guide
 
 📸 Photo Classification
@@ -599,6 +599,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
