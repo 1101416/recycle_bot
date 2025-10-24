@@ -198,22 +198,21 @@ class LineMessageHandler:
 
     def handle_text_message(self, event):
         """
-        處理文字訊息：
+        處理文字訊息 (新版邏輯)：
         1. 檢查是否為 /help, /news, /language 等指令。
-        2. 如果不是指令，則將該文字視為「關鍵字」進行資料庫搜尋。
+        2. 如果不是指令，則將該文字傳送給 AI (Gemini) 進行分類。
+        3. 使用 AI 回傳的 category，去資料庫搜尋詳細規則。
         """
         user_id = event.source.user_id
-        # 1. 取得原始文字，並建立一個小寫版本用於指令比對
         raw_text = event.message.text.strip()
         command_text = raw_text.lower()
 
-        # 2. 取得使用者語言設定
         self.recycle_db.get_or_create_user(user_id)
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
 
         try:
-            # --- 優先處理「指令」 ---
+            # --- 1. 優先處理「指令」 ---
             if command_text in ['/help', '幫助', 'help']:
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
                 return
@@ -228,52 +227,48 @@ class LineMessageHandler:
                 return
             
             # (未來可在此加入 /clothes 指令的處理)
-            # if command_text == '/clothes':
-            #    ...
 
-            # --- 如果不是指令，則執行「文字分類搜尋」 ---
+            # --- 2. 如果不是指令，則執行「AI 文字分類」 (模仿 handle_image_message) ---
             
-            # 我們利用 recycle_db.py 中的 get_specific_waste_info
-            # 它會自動搜尋關鍵字，如果找不到，會自動回傳 'other' (一般垃圾) 的處理方式
-            waste_info = self.recycle_db.get_specific_waste_info(
-                category='other',  # 提供 'other' 作為預設/備用分類
-                item_name=raw_text, # 使用者輸入的原始文字
-                language=user_lang
-            )
-
-            if waste_info:
-                # 建立一個模擬的 classification_result 以便重用 Flex Message
-                mock_classification_result = {
-                    'category': waste_info['category'],
-                    # 根據語言顯示使用者輸入的文字
-                    'item_name_zh': raw_text if user_lang == 'zh-TW' else '', 
-                    'item_name_en': raw_text if user_lang == 'en' else ''
-                }
+            # 將文字傳送給 AI 進行分類
+            classification_result = self.image_classifier.classify_text(raw_text)
+            
+            if classification_result:
+                # 根據使用者語言，決定要用中文還是英文名稱去搜尋資料庫
+                item_name_for_db = classification_result['item_name_zh'] if user_lang == 'zh-TW' else classification_result['item_name_en']
                 
-                # 呼叫現有的 Flex Message 產生器
-                flex_message = self._create_result_flex_message(
-                    mock_classification_result,
-                    waste_info,
-                    texts,
-                    user_lang
-                )
-                self.line_bot_api.reply_message(event.reply_token, flex_message)
-                
-                # (可選) 紀錄這次成功的文字搜尋
+                # 紀錄 AI 分類結果
                 try:
                     self.recycle_db.record_classification(
                         user_id,
-                        waste_info['category'],
-                        1.0,  # 文字比對成功，信心度 100%
-                        image_path=None,
-                        is_correct=True
+                        classification_result.get('category'),
+                        classification_result.get('confidence'),
+                        image_path=None # 標記為文字輸入
                     )
-                except Exception as db_e:
-                    logger.exception(f"Failed to record text classification: {db_e}")
+                except Exception:
+                    logger.exception("Failed to record text classification to DB")
 
+                # --- 3. 使用 AI 回傳的 category，去資料庫搜尋詳細規則 ---
+                waste_info = self.recycle_db.get_specific_waste_info(
+                    classification_result['category'], # <--- 使用 AI 判斷的 category (e.g., 'food')
+                    item_name_for_db,
+                    user_lang
+                )
+                
+                if waste_info:
+                    # 回傳結果 (使用與圖片相同的 Flex Message)
+                    flex_message = self._create_result_flex_message(
+                        classification_result,
+                        waste_info,
+                        texts,
+                        user_lang
+                    )
+                    self.line_bot_api.reply_message(event.reply_token, flex_message)
+                else:
+                    # (理論上) AI 判斷的 category 應該都會有通用規則，但以防萬一
+                    self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
             else:
-                # 這種情況理論上不會發生 (因為 get_specific_waste_info 會回傳 'other')
-                # 但作為保險，回傳更新後的錯誤訊息
+                # AI 分類失敗
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
 
         except Exception as e:
@@ -599,6 +594,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
