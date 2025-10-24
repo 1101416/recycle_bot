@@ -97,6 +97,12 @@ def insert_default_data(conn):
 
         # --- 廚餘 (Food Waste) ---
         ('food', '生熟廚餘,剩菜,剩飯,菜根,果皮,魚骨,肉骨,落葉', '瀝除水分後，倒入廚餘回收桶。', '硬質的果核(芒果、桃、李)、貝殼、竹筍殼、甘蔗皮等應作為堆肥廚餘或一般垃圾。', 'zh-TW'),
+
+        
+        ('animal', '動物屍體,寵物,寵物屍體,寵物遺體,流浪動物,流浪狗,流浪貓,街頭動物屍體,路倒動物,野生禽鳥,鳥屍體,死掉的鳥,貓,狗,鳥,屍體,遺體', 
+         '1. 自家寵物死亡：\n委託動物醫院、寵物業者協助處理（火化），或依《廢棄物清理法》自行包裝後交給清潔隊。\n\n2. 街頭流浪動物死亡：\n撥打1999通報專線或聯繫當地環保局/動保處。\n\n3. 野生禽鳥屍體：\n應立即撥打當地政府專線通報（如1999）。', 
+         '• 若交給清潔隊，請務必妥善密封包裝。\n• 處理流浪/野生動物，請勿徒手接觸。', 
+         'zh-TW'),
         
         # --- 其他 (Other) ---
         ('other', '潤滑油', '應交由機車行、汽車維修廠及加油站等設置的廢潤滑油回收站進行回收。', '不可倒入水槽或與其他回收物混合。', 'zh-TW'),
@@ -106,6 +112,7 @@ def insert_default_data(conn):
         # ####################################################################################
         # ### --- 新增區塊：通用分類總則 (General Rules) --- ###
         # ####################################################################################
+        ('animal', '動物屍體', '包含寵物、流浪動物或野生禽鳥。請參閱詳細處理方式，切勿隨意丟棄。', '請勿徒手接觸，並聯繫專門單位處理。', 'zh-TW'),
         ('food', '廚餘', '生、熟食物或殘渣，請瀝乾水分後倒入廚餘回收桶。', '硬質的果核、貝殼等不可混入。', 'zh-TW'),
         ('paper', '紙類', '乾淨的紙張、紙箱、紙容器，請去除雜質、壓平後回收。', '髒污或複合材質的紙張(如衛生紙、感熱紙)為一般垃圾。', 'zh-TW'),
         ('plastic', '塑膠類', '塑膠瓶、塑膠容器、乾淨的塑膠袋與保麗龍，請沖洗乾淨後回收。', '髒污或複合材質的塑膠(如餅乾袋)為一般垃圾。', 'zh-TW'),
@@ -118,6 +125,11 @@ def insert_default_data(conn):
         ('other', '其他/一般垃圾', '無法回收的物品皆屬此類，請打包後丟入垃圾車。', '包含髒污的回收物、複合材質物品等。', 'zh-TW'),
         
         # === English Rules (en) ===
+        
+        ('animal', 'Animal carcass, pet death, pet body, stray animal, roadkill, wild bird, dead bird, cat, dog, bird, dead body', 
+         '1. Own Pet Death:\nContact a veterinarian or pet cremation service, OR package the body securely and hand it to the sanitation crew.\n\n2. Stray Animal Death (Roadkill):\nCall the 1999 hotline or contact your local Environmental/Animal Protection Office.\n\n3. Wild Bird Carcass:\nImmediately call your local government hotline (e.g., 1999).', 
+         '• If handing to sanitation crew, ensure it is securely sealed.\n• Do not touch stray or wild animals with bare hands.', 
+         'en'),
 
         # --- Paper ---
         ('paper', 'Magazines, copy paper, wrapping paper, paper tea canisters, memo pads, calendars, paper bags, recycled paper, newspapers, computer paper, flyers, toilet paper rolls, phone books, wall calendars, cardboard boxes, corrugated paper, books, shopping bags, envelopes, business cards, notebooks, fruit protection bags', 'Please remove non-paper items like plastic covers, tape, coils, and staples first. Flatten and bundle for recycling.', 'For fruit protection bags, please remove strings, branches, and tape first. [cite: 2]', 'en'),
@@ -178,6 +190,7 @@ def insert_default_data(conn):
         # ####################################################################################
         # ### --- 新增區塊：通用分類總則 (General Rules) --- ###
         # ####################################################################################
+        ('animal', 'Animal Carcass', 'Includes pets, stray animals, or wild birds. Please refer to specific disposal methods and do not discard casually.', 'Do not touch with bare hands; contact specialized units.', 'en'), 
         ('food', 'Food Waste', 'Raw or cooked food scraps. Please drain excess liquid before putting into the food waste bin.', 'Do not mix in hard pits or shells.', 'en'),
         ('paper', 'Paper', 'Clean paper, cardboard, and paper containers. Please remove impurities, flatten, and recycle.', 'Soiled or composite paper (like tissues, thermal paper) is general waste.', 'en'),
         ('plastic', 'Plastic', 'Plastic bottles, containers, clean plastic bags, and Styrofoam. Please rinse clean before recycling.', 'Dirty or composite plastics (like snack bags) are general waste.', 'en'),
@@ -204,6 +217,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with the latest user-provided expert rules!")
+
 
 
 
