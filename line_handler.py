@@ -49,7 +49,7 @@ TEXTS = {
         'result_tips': '小提醒',
         'error_unrecognized': '抱歉，無法識別這張圖片中的垃圾類型。\n請確保：\n• 圖片清晰\n• 垃圾在圖片中佔主要部分\n• 光線充足\n\n請嘗試拍攝垃圾上的產品名稱或文字輸入物品名稱。',
         'default_reply': '請上傳垃圾照片或輸入文字進行分類，或輸入 /help 查看完整功能！',
-        'welcome_on_follow': """{Nickname} 您好～👋
+        'welcome_on_follow': """{nickname} 您好～👋
 我是您的專屬環保小幫手 🤖 {AccountName}！
 以後，環保的大小事就交給我吧！💪
 
@@ -70,7 +70,7 @@ TEXTS = {
         'news_no_items': '抱歉，目前沒有可顯示的新聞。'
     },
     'en': {
-        'welcome_on_follow': """Hi {Nickname}! 👋
+        'welcome_on_follow': """Hi {nickname}! 👋
 I'm {AccountName}, your personal eco-assistant! 🤖
 Leave the eco-tasks to me from now on! 💪
 
@@ -144,46 +144,74 @@ class LineMessageHandler:
     # 檔案: line_handler.py
 
     def handle_follow_event(self, event):
-        """處理加好友事件"""
+        """
+        處理加好友事件 (新版邏輯):
+        1. 偵測使用者 LINE 語言設定。
+        2. 如果使用者是第一次加入，根據偵測到的語言設定預設值 (非中文則預設英文)。
+        3. 如果使用者已存在 (例如解除封鎖後重新加入)，則使用資料庫中儲存的語言設定。
+        4. 發送對應語言的歡迎訊息。
+        """
         user_id = event.source.user_id
-        
-        # 取得使用者 LINE Profile
+        detected_language = 'en' # 預設為英文
+
+        # 1. 取得使用者 LINE Profile 並嘗試偵測語言
         try:
             profile = self.line_bot_api.get_profile(user_id)
             nickname = profile.display_name
-        except Exception:
-            logger.warning(f"Could not get profile for user {user_id}")
-            nickname = "朋友" # 預設名稱
-        
-        # 取得或建立使用者資料 (這會使用 recycle_db.py 中的邏輯設定預設語言 'zh-TW')
-        self.recycle_db.get_or_create_user(user_id)
-        user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
-        texts = self._get_texts(user_lang)
-        
-        # --- vvv 修改處 vvv ---
-        # *** 自動取得 Bot 顯示名稱 ***
+            # 檢查 profile 物件是否有 language 屬性
+            if hasattr(profile, 'language') and profile.language:
+                user_line_lang = profile.language.lower()
+                # 如果 LINE 語言設定是繁體中文或簡體中文，則預設為 zh-TW
+                if user_line_lang.startswith('zh'):
+                    detected_language = 'zh-TW'
+                # (未來可加入 ja, ko 等判斷)
+                # else: 預設就是 'en'
+            logger.info(f"Detected LINE language for {user_id}: {profile.language}, setting initial lang to: {detected_language}")
+
+        except Exception as e:
+            logger.warning(f"Could not get profile or language for user {user_id}. Defaulting nickname and lang. Error: {e}")
+            nickname = "朋友" # 預設暱稱
+            # 語言維持預設 'en'
+
+        # 2. 檢查使用者是否已存在於資料庫
+        existing_user_lang = self.recycle_db.get_user_language(user_id)
+
+        display_language = ''
+        if existing_user_lang:
+            # 3a. 使用者已存在 -> 使用資料庫中儲存的語言
+            display_language = existing_user_lang
+            # 更新最後活動時間
+            self.recycle_db.update_user_language(user_id, existing_user_lang) # update_user_language 其實也會更新 last_active
+            logger.info(f"Existing user {user_id} re-followed. Using saved language: {display_language}")
+        else:
+            # 3b. 使用者是新的 -> 使用偵測到的語言建立資料，並以此語言顯示歡迎訊息
+            self.recycle_db.get_or_create_user(user_id, language=detected_language) # 這裡會創建使用者並設定語言
+            display_language = detected_language
+            logger.info(f"New user {user_id} followed. Setting language to detected: {display_language}")
+
+        # 4. 根據最終決定的語言，取得文案並發送歡迎訊息
+        texts = self._get_texts(display_language)
+
         try:
-            # 呼叫 API 取得機器人自己的資訊
             bot_info = self.line_bot_api.get_bot_info()
             account_name = bot_info.display_name
         except Exception as e:
             logger.warning(f"Could not get bot info automatically: {e}. Using default name.")
-            # 如果 API 呼叫失敗，才使用備用名稱
-            account_name = "GreenLine 智慧垃圾分類助理" 
-        
+            account_name = "GreenLine 智慧垃圾分類助理" # 您的備用名稱
+
         # 格式化歡迎訊息
         welcome_text = texts['welcome_on_follow'].format(
             nickname=nickname,
             account_name=account_name
         )
-        
+
         # 回覆歡迎訊息
         try:
             self.line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(text=welcome_text)
             )
-            logger.info(f"Sent welcome message to new user {user_id}")
+            logger.info(f"Sent welcome message to user {user_id} in {display_language}")
         except Exception as e:
             logger.exception(f"Failed to reply to follow event: {e}")
 
@@ -594,6 +622,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
