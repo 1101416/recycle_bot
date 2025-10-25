@@ -50,7 +50,7 @@ TEXTS = {
         'error_unrecognized': '抱歉，無法識別這張圖片中的垃圾類型。\n請確保：\n• 圖片清晰\n• 垃圾在圖片中佔主要部分\n• 光線充足\n\n請嘗試拍攝垃圾上的產品名稱或文字輸入物品名稱。',
         'default_reply': '請上傳垃圾照片或輸入文字進行分類，或輸入 /help 查看完整功能！',
         'welcome_on_follow': """{nickname} 您好～👋
-我是您的專屬環保小幫手 🤖 {AccountName}！
+我是您的專屬環保小幫手 🤖 {account_name}！
 以後，環保的大小事就交給我吧！💪
 
 我可以幫您：
@@ -71,7 +71,7 @@ TEXTS = {
     },
     'en': {
         'welcome_on_follow': """Hi {nickname}! 👋
-I'm {AccountName}, your personal eco-assistant! 🤖
+I'm {account_name}, your personal eco-assistant! 🤖
 Leave the eco-tasks to me from now on! 💪
 
 I can help you:
@@ -622,6 +622,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
