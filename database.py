@@ -117,7 +117,7 @@ def insert_default_data(conn):
         ('other', '食用油,回鍋油,過期食用油', '請先以塑膠容器盛裝後，交由資源回收車回收。', '切勿倒入排水管，會造成嚴重堵塞。', 'zh-TW'),
         ('other', '暖暖包', '不含塑膠外包裝，可交付資源回收車回收。', '這屬於其他回收項目。', 'zh-TW'),
         # --- 動物屍體 (Animal) ---
-        ('animal', '動物屍體,寵物,寵物屍體,寵物遺體,流浪動物,流浪狗,流浪貓,街頭動物屍體,路倒動物,野生禽鳥,鳥屍體,死掉的鳥,貓,狗,鳥,屍體,遺體', '1. 自家寵物死亡：\n委託動物醫院、寵物業者協助處理（火化），或依《廢棄物清理法》自行包裝後交給清潔隊。\n\n2. 街頭流浪動物死亡：\n撥打1999通報專線或聯繫當地環保局/動保處。\n\n3. 野生禽鳥屍體：\n應立即撥打當地政府專線通報（如1999）。', '• 若交給清潔隊，請務必妥善密封包裝。\n• 處理流浪/野生動物，請勿徒手接觸。', 'zh-TW'),
+        ('animal', '動物屍體,寵物,寵物屍體,寵物遺體,流浪動物,流浪狗,流浪貓,街頭動物屍體,路倒動物,野生禽鳥,鳥屍體,死掉的鳥,貓,狗,鳥,屍體,遺體', '1. 自家寵物死亡：\n委託動物醫院、寵物業者協助處理（火化），或依《廢棄物清理法》自行包裝後交給清潔隊。\n\n2. 街頭流浪動物死亡：\n撥打1999通報專線或聯繫當地環保局/動保處。\n\n3. 野生禽鳥屍體：\n應立即撥打當地政府專線通報（如1999）。', '• 注意!機器人無法判斷生物是否有生命跡象，請尋求專業人士判斷!\n• 若交給清潔隊，請務必妥善密封包裝。\n• 處理流浪/野生動物，請勿徒手接觸。', 'zh-TW'),
 
         # === English Rules (en) ===
         # ... (所有英文專家規則保持不變) ...
@@ -157,7 +157,7 @@ def insert_default_data(conn):
         ('other', 'Lubricating oil', 'Should be taken to recycling stations at scooter shops, car repair shops, or gas stations.', 'Do not pour down the sink or mix with other recyclables.', 'en'),
         ('other', 'Cooking oil, used cooking oil, expired cooking oil', 'Please collect it in a plastic container first, then hand it to the recycling truck.', 'Never pour it down the drain as it will cause severe blockages.', 'en'),
         ('other', 'Heating packs', 'Excluding the plastic outer packaging, it can be handed to the recycling truck.', 'This belongs to other recyclable items.', 'en'),
-        ('animal', 'Animal carcass, pet death, pet body, stray animal, roadkill, wild bird, dead bird, cat, dog, bird, dead body', '1. Own Pet Death:\nContact a veterinarian or pet cremation service, OR package the body securely and hand it to the sanitation crew.\n\n2. Stray Animal Death (Roadkill):\nCall the 1999 hotline or contact your local Environmental/Animal Protection Office.\n\n3. Wild Bird Carcass:\nImmediately call your local government hotline (e.g., 1999).', '• If handing to sanitation crew, ensure it is securely sealed.\n• Do not touch stray or wild animals with bare hands.', 'en'),
+        ('animal', 'Animal carcass, pet death, pet body, stray animal, roadkill, wild bird, dead bird, cat, dog, bird, dead body', '1. Own Pet Death:\nContact a veterinarian or pet cremation service, OR package the body securely and hand it to the sanitation crew.\n\n2. Stray Animal Death (Roadkill):\nCall the 1999 hotline or contact your local Environmental/Animal Protection Office.\n\n3. Wild Bird Carcass:\nImmediately call your local government hotline (e.g., 1999).', '• Attention! Robots cannot determine whether an organism is alive. Please seek professional judgment! \n• If handing to sanitation crew, ensure it is securely sealed.\n• Do not touch stray or wild animals with bare hands.', 'en'),
     ]
 
     # --- 2. 通用規則列表 (General Rules) ---
@@ -173,7 +173,7 @@ def insert_default_data(conn):
         ('ewaste', '電子廢棄物', '廢棄的家電、資訊用品(電腦、手機)、光碟片等，請交給回收車或指定回收點。', '回收前請移除電池並清除個資。', 'zh-TW'),
         ('hazard', '有害垃圾', '廢電池、廢燈管、溫度計、過期藥品等，需交由專門回收管道處理。', '切勿混入一般垃圾或資源回收，以免造成環境危害。', 'zh-TW'),
         ('bulky', '大型廢棄物', '廢棄家具、床墊、車輛、輪胎等，需聯絡當地清潔隊預約專門清運。', '請勿隨意棄置，以免受罰。', 'zh-TW'),
-        ('animal', '動物屍體', '包含寵物、流浪動物或野生禽鳥。請參閱詳細處理方式，切勿隨意丟棄。', '請勿徒手接觸，並聯繫專門單位處理。', 'zh-TW'),
+        ('animal', '動物屍體', '包含寵物、流浪動物或野生禽鳥。請參閱詳細處理方式，切勿隨意丟棄。', '• 注意！機器人無法判斷生物是否有生命體，請尋求專業人士判斷！\n請勿徒手接觸，並聯繫專門單位處理。', 'zh-TW'),
         ('money', '金錢(貨幣)', '1. 現行流通貨幣 (民國89年起)：\n請勿丟棄！此為法定流通資產。\n\n2. 舊版新臺幣 (票面載明「臺灣銀行」)：\n請持至臺灣銀行各地分行，兌換成等值的現行流通券幣。', '• 舊版兌換範圍：所有載明「臺灣銀行」字樣的鈔券（紀念鈔除外），及民國68年以前的伍圓、壹圓硬幣。\n• 嚴重毀損的現行貨幣也可洽詢臺灣銀行鑑定。', 'zh-TW'),
         ('other', '其他/一般垃圾', '無法回收的物品皆屬此類，請打包後丟入垃圾車。', '包含髒污的回收物、複合材質物品等。', 'zh-TW'),
 
@@ -187,7 +187,7 @@ def insert_default_data(conn):
         ('ewaste', 'E-Waste', 'Discarded appliances, IT equipment (computers, phones), CDs, etc. Please hand to a recycling truck or designated point.', 'Remove batteries and erase personal data before recycling.', 'en'),
         ('hazard', 'Hazardous Waste', 'Used batteries, light bulbs/tubes, thermometers, expired medicine, etc. Must be handled by specialized services.', 'Do not mix with other waste to avoid environmental harm.', 'en'),
         ('bulky', 'Bulky Waste', 'Discarded furniture, mattresses, vehicles, tires, etc. Requires a scheduled pickup from your local sanitation department.', 'Do not dump illegally to avoid fines.', 'en'),
-        ('animal', 'Animal Carcass', 'Includes pets, stray animals, or wild birds. Please refer to specific disposal methods and do not discard casually.', 'Please do not touch with bare hands; contact specialized units.', 'en'),
+        ('animal', 'Animal Carcass', 'Includes pets, stray animals, or wild birds. Please refer to specific disposal methods and do not discard casually.', '• Attention! Robots cannot determine whether an organism is alive. Please seek professional judgment! \nPlease do not touch with bare hands; contact specialized units.', 'en'),
         ('money', 'Currency', '1. Current Circulating Currency (Central Bank issue, from 2000):\nDO NOT DISCARD! This is legal tender.\n\n2. Old NTD (Notes marked "Bank of Taiwan"):\nTake to any Bank of Taiwan branch to exchange for current currency.', '• Exchange scope: All notes marked "Bank of Taiwan" (except 50th anniv. plastic note) and 5 NTD/1 NTD coins from before 1979.', 'en'),
         ('other', 'Other/General Waste', 'Items that cannot be recycled belong here. Please bag them for the garbage truck.', 'Includes soiled recyclables and composite material items.', 'en'),
     ]
@@ -227,5 +227,6 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with separated expert and general rules!")
+
 
 
