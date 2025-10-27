@@ -242,11 +242,11 @@ class LineMessageHandler:
 
     def handle_text_message(self, event):
         """
-        處理文字訊息 (v5 - 加入聊天判斷)：
+        處理文字訊息 (v6 - 調整判斷順序)：
         1. 檢查指令。
         2. 非指令 -> 送 AI 分類。
-        3. 檢查 AI 結果是否為非實體物品。
-        4. 檢查 AI 結果是否為 'other' 且輸入疑似聊天 -> 回覆提示。
+        3. 檢查 AI 結果是否為 'other' 且輸入疑似聊天 -> 回覆提示。
+        4. 檢查 AI 結果是否為非實體物品 -> 回覆提示。
         5. 正常顯示分類結果。
         """
         user_id = event.source.user_id
@@ -279,7 +279,31 @@ class LineMessageHandler:
                 item_zh = classification_result.get('item_name_zh', '')
                 item_en = classification_result.get('item_name_en', '').lower()
 
-                # --- 3. 檢查是否為非實體物品 ---
+                # --- 3. **優先**檢查是否為 'other' 且疑似聊天 ---
+                common_chat_words_zh = ['你好', '哈囉', '嗨', '謝謝', '感謝', '嗯嗯', '喔喔', '掰掰','哈囉']
+                common_chat_words_en = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'ok', 'okay', 'bye']
+                is_potential_chat = False
+                if category == 'other':
+                    if user_lang == 'zh-TW':
+                        if len(raw_text) <= 2 or any(word in raw_text for word in common_chat_words_zh):
+                            is_potential_chat = True
+                    else:
+                        if len(raw_text.split()) <= 1 or raw_text.lower() in common_chat_words_en:
+                             is_potential_chat = True
+
+                if is_potential_chat:
+                    self.line_bot_api.reply_message(
+                        event.reply_token,
+                        TextMessage(text=texts['maybe_chat_reply'])
+                    )
+                    logger.info(f"Input text '{raw_text}' was classified as 'other' and deemed potential chat. Sent maybe_chat_reply.")
+                    try:
+                        self.recycle_db.record_classification(user_id, category, classification_result.get('confidence'), image_path=None, is_correct=False, feedback="Potential chat misclassified as other")
+                    except Exception:
+                        logger.exception("Failed to record potential chat misclassification")
+                    return # 提早結束
+
+                # --- 4. **然後才**檢查是否為非實體物品 ---
                 if item_zh in ['螢幕截圖', '遊戲畫面', '繪圖'] or item_en in ['screenshot', 'game screen', 'drawing']:
                     self.line_bot_api.reply_message(
                         event.reply_token,
@@ -288,40 +312,9 @@ class LineMessageHandler:
                     logger.info(f"Replied with not_garbage_reply for non-physical text input: {item_zh}/{item_en}")
                     return # 提早結束
 
-                # --- 4. 檢查是否為 'other' 且疑似聊天 ---
-                # 定義一些常見的聊天詞彙或模式
-                common_chat_words_zh = ['你好', '哈囉', '嗨', '謝謝', '感謝', '嗯嗯', '喔喔', '掰掰']
-                common_chat_words_en = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'ok', 'okay', 'bye']
-                is_potential_chat = False
-                # 判斷邏輯：分類為 other，且文字很短，或是常見聊天用語
-                if category == 'other':
-                    if user_lang == 'zh-TW':
-                        # 中文：長度小於等於 2 或 包含在聊天詞彙列表
-                        if len(raw_text) <= 2 or any(word in raw_text for word in common_chat_words_zh):
-                            is_potential_chat = True
-                    else: # 英文或其他
-                         # 英文：只有一個單字 或 包含在聊天詞彙列表
-                        if len(raw_text.split()) <= 1 or raw_text.lower() in common_chat_words_en:
-                             is_potential_chat = True
-
-                # 如果判定為疑似聊天
-                if is_potential_chat:
-                    self.line_bot_api.reply_message(
-                        event.reply_token,
-                        TextMessage(text=texts['maybe_chat_reply'])
-                    )
-                    logger.info(f"Input text '{raw_text}' was classified as 'other' and deemed potential chat. Sent maybe_chat_reply.")
-                    # 記錄這次 AI 可能的錯誤分類 (但不給使用者看)
-                    try:
-                        self.recycle_db.record_classification(user_id, category, classification_result.get('confidence'), image_path=None, is_correct=False, feedback="Potential chat misclassified as other")
-                    except Exception:
-                        logger.exception("Failed to record potential chat misclassification")
-                    return # 不顯示 'other' 的分類卡片，提早結束
-
-                # --- 5. 執行正常的分類流程 (如果不是非實體且非聊天) ---
+                # --- 5. 執行正常的分類流程 ---
                 item_name_for_db = item_zh if user_lang == 'zh-TW' else item_en
                 try:
-                    # 正常紀錄分類 (假設 AI 分類正確)
                     self.recycle_db.record_classification(user_id, category, classification_result.get('confidence'), image_path=None)
                 except Exception:
                     logger.exception("Failed to record text classification to DB")
@@ -332,11 +325,9 @@ class LineMessageHandler:
                     flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
                     self.line_bot_api.reply_message(event.reply_token, flex_message)
                 else:
-                    # 雖然 AI 判斷有 category，但資料庫找不到對應規則 (理論上不應發生)
                     logger.error(f"AI returned category '{category}' but no matching rule found in DB for lang '{user_lang}'.")
                     self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
             else:
-                # AI 分類 API 呼叫失敗
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
 
         except Exception as e:
@@ -703,6 +694,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
