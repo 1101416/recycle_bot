@@ -22,6 +22,12 @@ TEXTS = {
     'zh-TW': {
         'welcome_title': '🌱 AI 智能垃圾分類助手',
         'welcome_body': '歡迎使用！\n我可以幫您：\n• 📸 拍照識別垃圾類型\n• 📍 傳送位置查詢附近垃圾車\n\n請拍照上傳或傳送您的位置！',
+        'maybe_chat_reply': """您說的是...？ 🤔
+如果您想進行垃圾分類，請：
+📸 直接傳送【照片】
+✏️ 輸入【物品名稱】（例如：紙杯、電池）
+
+或點選下方選單或輸入/help 查看更多功能喔！""",
         'not_garbage_reply': """🤔抱歉，這個好像不是實體的垃圾耶！
 我主要擅長分類可以丟棄的實體物品。如果您傳送的是螢幕截圖、遊戲畫面或繪圖，我可能無法提供回收建議喔！""",
         'help': """📖 使用說明
@@ -114,6 +120,12 @@ I specialize in classifying physical items that you can dispose of. If you sent 
         'result_category': 'Category',
         'result_method': 'Disposal Method',
         'result_tips': 'Tips',
+        'maybe_chat_reply': """Hmm? What was that...? 🤔
+If you want to classify waste, please:
+📸 Send a [Photo] directly
+✏️ Type the [Item Name] (e.g., paper cup, battery)
+
+Or tap the menu below or type /help for more functions!""",
         'error_unrecognized': 'Sorry, I couldn’t recognize the type of waste in this image.\nPlease make sure :\n• The image is clear\n• The waste item is the main focus\n• The lighting is sufficient\n\nTry taking a photo that shows the product label or type name instead.',
         'default_reply': 'Please upload a photo or type text for classification, or type /help to see all commands!',
         'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
@@ -230,11 +242,12 @@ class LineMessageHandler:
 
     def handle_text_message(self, event):
         """
-        處理文字訊息 (最終版邏輯)：
-        1. 檢查是否為 /help, /news, /language 等指令。
-        2. 如果不是指令，則將該文字傳送給 AI (Gemini) 進行分類。
-        3. 檢查 AI 是否回傳非實體物品，若是則回覆提示。
-        4. 使用 AI 回傳的 category，去資料庫搜尋詳細規則並回傳。
+        處理文字訊息 (v5 - 加入聊天判斷)：
+        1. 檢查指令。
+        2. 非指令 -> 送 AI 分類。
+        3. 檢查 AI 結果是否為非實體物品。
+        4. 檢查 AI 結果是否為 'other' 且輸入疑似聊天 -> 回覆提示。
+        5. 正常顯示分類結果。
         """
         user_id = event.source.user_id
         raw_text = event.message.text.strip()
@@ -249,11 +262,10 @@ class LineMessageHandler:
             if command_text in ['/help', '幫助', 'help']:
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
                 return
-
+            # ... (處理 /language, /news 的程式碼不變) ...
             if command_text in ['/language', '語言', 'language']:
                 self._send_language_menu(event.reply_token)
                 return
-
             if command_text in ['/news', 'news', '最新消息', '公告']:
                 news_text = self._get_news_text(user_lang)
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=news_text))
@@ -263,9 +275,11 @@ class LineMessageHandler:
             classification_result = self.image_classifier.classify_text(raw_text)
 
             if classification_result:
-                # --- 3. 檢查是否為非實體物品 ---
+                category = classification_result.get('category')
                 item_zh = classification_result.get('item_name_zh', '')
                 item_en = classification_result.get('item_name_en', '').lower()
+
+                # --- 3. 檢查是否為非實體物品 ---
                 if item_zh in ['螢幕截圖', '遊戲畫面', '繪圖'] or item_en in ['screenshot', 'game screen', 'drawing']:
                     self.line_bot_api.reply_message(
                         event.reply_token,
@@ -274,31 +288,55 @@ class LineMessageHandler:
                     logger.info(f"Replied with not_garbage_reply for non-physical text input: {item_zh}/{item_en}")
                     return # 提早結束
 
-                # --- 4. 執行正常的分類流程 ---
+                # --- 4. 檢查是否為 'other' 且疑似聊天 ---
+                # 定義一些常見的聊天詞彙或模式
+                common_chat_words_zh = ['你好', '哈囉', '嗨', '謝謝', '感謝', '嗯嗯', '喔喔', '掰掰']
+                common_chat_words_en = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'ok', 'okay', 'bye']
+                is_potential_chat = False
+                # 判斷邏輯：分類為 other，且文字很短，或是常見聊天用語
+                if category == 'other':
+                    if user_lang == 'zh-TW':
+                        # 中文：長度小於等於 2 或 包含在聊天詞彙列表
+                        if len(raw_text) <= 2 or any(word in raw_text for word in common_chat_words_zh):
+                            is_potential_chat = True
+                    else: # 英文或其他
+                         # 英文：只有一個單字 或 包含在聊天詞彙列表
+                        if len(raw_text.split()) <= 1 or raw_text.lower() in common_chat_words_en:
+                             is_potential_chat = True
+
+                # 如果判定為疑似聊天
+                if is_potential_chat:
+                    self.line_bot_api.reply_message(
+                        event.reply_token,
+                        TextMessage(text=texts['maybe_chat_reply'])
+                    )
+                    logger.info(f"Input text '{raw_text}' was classified as 'other' and deemed potential chat. Sent maybe_chat_reply.")
+                    # 記錄這次 AI 可能的錯誤分類 (但不給使用者看)
+                    try:
+                        self.recycle_db.record_classification(user_id, category, classification_result.get('confidence'), image_path=None, is_correct=False, feedback="Potential chat misclassified as other")
+                    except Exception:
+                        logger.exception("Failed to record potential chat misclassification")
+                    return # 不顯示 'other' 的分類卡片，提早結束
+
+                # --- 5. 執行正常的分類流程 (如果不是非實體且非聊天) ---
                 item_name_for_db = item_zh if user_lang == 'zh-TW' else item_en
                 try:
-                    self.recycle_db.record_classification(
-                        user_id,
-                        classification_result.get('category'),
-                        classification_result.get('confidence'),
-                        image_path=None
-                    )
+                    # 正常紀錄分類 (假設 AI 分類正確)
+                    self.recycle_db.record_classification(user_id, category, classification_result.get('confidence'), image_path=None)
                 except Exception:
                     logger.exception("Failed to record text classification to DB")
 
-                waste_info = self.recycle_db.get_specific_waste_info(
-                    classification_result['category'],
-                    item_name_for_db,
-                    user_lang
-                )
+                waste_info = self.recycle_db.get_specific_waste_info(category, item_name_for_db, user_lang)
 
                 if waste_info:
                     flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
                     self.line_bot_api.reply_message(event.reply_token, flex_message)
                 else:
+                    # 雖然 AI 判斷有 category，但資料庫找不到對應規則 (理論上不應發生)
+                    logger.error(f"AI returned category '{category}' but no matching rule found in DB for lang '{user_lang}'.")
                     self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
             else:
-                # AI 分類失敗
+                # AI 分類 API 呼叫失敗
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
 
         except Exception as e:
@@ -306,11 +344,11 @@ class LineMessageHandler:
             try:
                 self.line_bot_api.reply_message(
                     event.reply_token,
-                    TextMessage(text=texts.get('error_unrecognized', 'Sorry, an error occurred.')) # Use get for safety
+                    TextMessage(text=texts.get('error_unrecognized', 'Sorry, an error occurred.'))
                 )
             except Exception:
                  logger.exception("Failed to send error reply for text message")
-    # --- ^^^ handle_text_message 結束 ^^^ ---
+
     def _get_news_text(self, user_lang: str) -> str:
         """
         嘗試從 NEWS_API_URL 取得新聞 JSON（彈性處理），回傳可直接發送給使用者的文字。
@@ -665,6 +703,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
