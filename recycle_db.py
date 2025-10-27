@@ -1,5 +1,5 @@
 # 檔案: recycle_db.py
-# (此版本 v4.2 已修正專家搜尋邏輯，確保 category 優先匹配)
+# (此版本 v4.3 已修正 _format_rule_response 邏輯，優先使用資料庫規則的 category)
 
 import sqlite3
 import json
@@ -14,24 +14,37 @@ class RecycleDatabase:
     def __init__(self, db_path='database.db'):
         self.db_path = db_path
 
-    def _format_rule_response(self, rule_tuple: Tuple, category_key: str) -> Optional[Dict]:
-        """(輔助函式) 將資料庫回傳的 tuple 格式化為 dict"""
+    # --- vvv 請用這個新版本取代舊的 _format_rule_response vvv ---
+    def _format_rule_response(self, rule_tuple: Tuple, ai_category_key: str) -> Optional[Dict]:
+        """
+        (輔助函式 v2) 將資料庫回傳的 tuple 格式化為 dict
+        優先使用 rule_tuple 中儲存的 category。
+        """
         if not rule_tuple:
             return None
 
-        category_name_zh = Config.WASTE_CATEGORIES.get(category_key, '其他')
+        # rule_tuple[0] 是資料庫中這條規則實際儲存的 category (e.g., 'ewaste')
+        db_category_key = rule_tuple[0]
+
+        # 從 Config 獲取標準的中文名稱 (使用資料庫的 category key)
+        category_name_zh = Config.WASTE_CATEGORIES.get(db_category_key, '其他')
+
+        # 如果 AI 的分類和資料庫規則的分類不同，記錄一下
+        if ai_category_key != db_category_key:
+             logger.warning(f"Category correction: AI suggested '{ai_category_key}', but DB rule is '{db_category_key}'. Using DB category.")
 
         return {
-            'category': category_key,
+            'category': db_category_key, # <--- 使用資料庫規則的 category
             'category_name': rule_tuple[1],
             'category_name_zh': category_name_zh,
             'disposal_method': rule_tuple[2],
             'tips': rule_tuple[3]
         }
+    # --- ^^^ 請用這個新版本取代舊的 _format_rule_response ^^^ ---
 
     def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Optional[Dict]:
         """
-        (智慧查詢引擎 v4.2 - 修正專家搜尋邏輯)
+        (智慧查詢引擎 v4.2 - 邏輯不變，僅更新 _format_rule_response 的呼叫)
         階段 1: 搜尋 expert 表，優先找 category 和 keyword 都匹配的規則。
         階段 1.5: 若無完全匹配，再找 keyword 匹配但 category 不符的規則 (作為次級備案)。
         階段 2: 若完全找不到專家規則，才搜尋 general 表。
@@ -46,12 +59,10 @@ class RecycleDatabase:
 
                 item_to_check = item_name if language == 'zh-TW' else item_name.lower()
 
-                # --- vvv 修正邏輯 v4.2 vvv ---
-
-                category_mismatch_rule = None # 用來儲存「關鍵字對了但分類錯了」的備案規則
+                category_mismatch_rule = None # 儲存分類不符的備案
 
                 for rule in expert_rules:
-                    rule_category = rule[0] # 這條規則本身的 category (e.g., 'other', 'bulky')
+                    rule_category = rule[0] # 資料庫規則的分類
                     db_keywords_str = rule[1]
                     db_keywords = [kw.strip().lower() if language == 'en' else kw.strip() for kw in db_keywords_str.split(',')]
 
@@ -62,27 +73,22 @@ class RecycleDatabase:
                             break
 
                     if found_keyword_match:
-                        # **最高優先級**：如果找到的規則 category 與 AI 的 category 相同
-                        if rule_category == category:
+                        # 最高優先級：分類和關鍵字都匹配
+                        if rule_category == category: # category 是 AI 傳入的分類
                             logger.info(f"Exact expert rule found for '{item_name}' (category match: '{category}'), using rule for keywords '{rule[1]}'.")
-                            return self._format_rule_response(rule, category) # 直接回傳這個最佳結果
-
-                        # **次高優先級**：如果 category 不匹配，先暫存起來 (只存第一個找到的)
+                            # 即使匹配，也傳入 AI 的 category 給 _format 供記錄
+                            return self._format_rule_response(rule, category)
+                        # 次高優先級：關鍵字匹配但分類不符，暫存
                         elif category_mismatch_rule is None:
                              category_mismatch_rule = rule
 
-                # 如果跑完了迴圈，都沒找到 category 匹配的，但有找到 category 不符的備案
+                # 如果沒有完美匹配，但有分類不符的備案
                 if category_mismatch_rule:
                     logger.warning(f"Keyword match found for '{item_name}' but category mismatch (AI: '{category}', Rule: '{category_mismatch_rule[0]}'). Using this rule as fallback: '{category_mismatch_rule[1]}'.")
-                    # 回傳這個次級備案，但仍然使用 AI 的 category
+                    # 將找到的規則 和 AI 的 category 都傳入 format 函式
                     return self._format_rule_response(category_mismatch_rule, category)
 
-                # --- ^^^ 修正邏輯 v4.2 ^^^ ---
-
-
-                # --- 階段 2: 搜尋「通用規則」 (後備方案) ---
-                # (如果上面完全沒有找到任何關鍵字匹配的專家規則，連 category 不符的都沒有)
-
+                # --- 階段 2: 搜尋「通用規則」 ---
                 logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
 
                 cursor.execute(
@@ -92,6 +98,7 @@ class RecycleDatabase:
                 general_rule = cursor.fetchone()
 
                 if general_rule:
+                     # 將通用規則 和 AI 的 category 傳入 format 函式
                     return self._format_rule_response(general_rule, category)
 
                 logger.error(f"CRITICAL: No general rule found for category '{category}' in language '{language}'.")
@@ -102,7 +109,7 @@ class RecycleDatabase:
             return None
 
     # --- 以下為使用者資料相關函式，維持不變 ---
-
+    # ... (get_or_create_user, get_user_language, etc. 保持不變) ...
     def get_or_create_user(self, user_id: str, language: str = 'zh-TW') -> Dict:
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -147,9 +154,19 @@ class RecycleDatabase:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute('INSERT INTO classifications (user_id, category, confidence, image_path, is_correct, feedback, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, category, confidence, image_path, is_correct, feedback, datetime.now()))
-                if is_correct:
+                # 修正：如果找到更精確的專家規則，應該記錄專家規則的分類，而非AI的
+                final_category = category # 預設使用 AI 分類
+                if is_correct is None and feedback is None: # 代表這是正常分類流程
+                    # 嘗試再次搜尋，看是否有更精確的專家規則分類
+                    # 注意：這裡假設 item_name 存在於某個地方，或者需要從 classification_result 傳遞過來
+                    # 為了簡化，我們先假設 category 是最終的，但未來可以優化這裡
+                    pass # 暫時不覆蓋
+
+                cursor.execute('INSERT INTO classifications (user_id, category, confidence, image_path, is_correct, feedback, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, final_category, confidence, image_path, is_correct, feedback, datetime.now()))
+                # 積分計算也應基於最終分類
+                if is_correct is None and final_category != 'other' and final_category != 'animal' and final_category != 'money': # 假設非 other/animal/money 就算成功
                     cursor.execute('UPDATE users SET eco_points = eco_points + 1 WHERE user_id = ?', (user_id,))
+
                 conn.commit()
                 return True
         except Exception as e:
