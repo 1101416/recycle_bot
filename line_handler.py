@@ -40,6 +40,7 @@ TEXTS = {
 • 輸入 /language - 顯示目前所支援的語言並提供選擇
 • 輸入 /news - 環保新聞
 • 輸入「欲做分類的垃圾名稱」 - 幫該垃圾做分類，如輸入：娃娃
+
 📍 位置功能
 • 傳送位置資訊可查詢附近垃圾車時間
 • 輸入/clothes並傳送位置資訊可查詢附近舊衣回收箱
@@ -694,6 +695,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
