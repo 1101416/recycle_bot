@@ -29,44 +29,41 @@ category: [lowercase_english_category], item_zh: [traditional_chinese_name], ite
 **3. Core Decision Rules (Must Follow - Order Matters)**
 
 * **Rule 0: Non-Physical Items (HIGHEST PRIORITY)**
-    * If the image is clearly a screenshot, game screen, drawing, diagram, or any non-physical item:
-        * Set `category: other`.
-        * Set `item_zh: 螢幕截圖` (or '遊戲畫面', '繪圖').
-        * Set `item_en: screenshot` (or 'game screen', 'drawing').
-        * **Do NOT proceed to other rules.**
+    * Screenshots, game screens, drawings → `category: other`, name appropriately (e.g., '螢幕截圖'/'screenshot'). **STOP**.
 
 * **Rule 1: Special Physical Items**
-    * Dead Animals (cat, dog, bird): MUST classify as 'animal'.
-    * Currency (banknotes, coins): MUST classify as 'money'.
-    * Hazardous Items (Batteries, light bulbs/tubes, mercury thermometers, expired medicine, gas canisters): MUST classify as 'hazard'.
+    * Dead Animals → 'animal'.
+    * Currency → 'money'.
+    * Hazardous Items (Batteries, light bulbs/tubes, mercury thermometers, expired medicine, gas canisters) → 'hazard'.
 
-* **Rule 2: Paper vs. Content**
-    * If the image shows paper with text/images (flyer, magazine, newspaper, packaging box), identify the **paper object itself** (e.g., '傳單', '雜誌', '紙箱') and classify based on its material ('paper' or 'other' if soiled/composite), **NOT** the content depicted. Beverage cartons (Tetra Pak) count as 'paper'.
+* **Rule 2: Electronics (E-Waste)**
+    * ALL electronics, appliances, IT peripherals (TVs, phones, **keyboards**, **mice**, chargers, cables), even broken → 'ewaste'. **Do NOT classify keyboards/mice as 'other'.**
 
-* **Rule 3: Material-First (Containers & Plastics Focus)**
-    * Determine the item's **primary container/body material**. Focus on the main body if components differ.
-    * **Example: Spray Bottle**: The bottle itself is likely #2 HDPE or #5 PP plastic. Classify as 'plastic', naming it '噴霧瓶'/'spray bottle'. Ignore the nozzle material for classification purposes.
-    * **Plastic Identification**: Look for recycling symbols if visible.
-        * **Highly Recyclable (Prioritize 'plastic')**: #1 (PET - beverage bottles, coffee bottles, trays), #2 (HDPE - milk jugs, detergent bottles, some spray bottles), #5 (PP - yogurt cups, microwave containers, some spray bottles). Classify these as 'plastic' if clean.
-        * **Less Recyclable (Check Cleanliness/Composite)**: #4 (LDPE - bags, film), #6 (PS - styrofoam, Yakult bottles). If clean & single material → 'plastic'. If dirty/oily/composite → 'other'. Styrofoam: needs "Clean, Tear off tape, Bagged".
-        * **Difficult/Non-Recyclable (Prioritize 'other')**: #3 (PVC), #7 (OTHER - complex composites, PLA). Classify as 'other'.
-    * **Metal Identification**: Cans (iron/aluminum), clean metal tools → 'metal'.
-    * **Glass Identification**: Glass bottles/jars (like cosmetic oil bottles) → 'glass'. (Mirrors → 'other').
+* **Rule 3: Paper Rules (IMPORTANT distinctions)**
+    * **Recyclable Paper ('paper')**: Clean flyers, magazines, newspapers, cardboard boxes, beverage cartons (Tetra Paks).
+    * **Non-Recyclable Paper ('other')**: **Used toilet paper (衛生紙)**, tissue paper (面紙), paper towels, diapers, sanitary pads, thermal paper (receipts), stickers, soiled paper. **Toilet paper MUST be 'other'.**
+    * **Paper vs. Content**: If paper with images/text (flyer, box), classify the paper object itself, NOT the content.
 
-* **Rule 4: Cleanliness is Key**
-    * If any potentially recyclable item (paper, plastic #1, #2, #4, #5, #6) is heavily soiled, oily, or food-contaminated → 'other'.
+* **Rule 4: Material-First (Containers & Plastics Focus)**
+    * Focus on the main container/body material. (e.g., Spray bottle body → 'plastic').
+    * **Plastic ID**: #1, #2, #5 → 'plastic' (if clean). #4, #6 → 'plastic' (if clean & simple). #3, #7 → 'other'.
+    * **Metal ID**: Cans, clean tools → 'metal'.
+    * **Glass ID**: Bottles/jars → 'glass'. (Mirrors → 'other').
 
-* **Rule 5: Specific Item Rules & Exceptions**
-    * **ewaste**: ALL electronics & appliances (TVs, phones, tablets, laptops, chargers, keyboards, power banks), **even if broken**, are 'ewaste'.
-    * **textile**: Clean, wearable clothing → 'textile'. (Pillows, blankets, socks, shoes, bags, stuffed animals → 'other').
-    * **bulky**: Large furniture (mattresses, sofas), vehicles, tires → 'bulky'.
-    * **food**: Cooked or raw food scraps → 'food'.
-    * **Common Non-Recyclable Plastics (Always 'other')**: Dirty/oily plastic bags, opaque shopping bags (破壞袋), bubble wrap, refill packs (補充包), cling film (保鮮膜), plastic floss picks (牙線棒), flip-flops (夾腳拖), yoga mats (瑜珈墊), toothbrushes (牙刷), complex phone cases (複合材質手機殼).
+* **Rule 5: Cleanliness & Composite Rules**
+    * Heavily soiled/oily paper or plastic → 'other'.
+    * Composite/multilayer packaging (snack bags) → 'other'.
+
+* **Rule 6: Other Specific Categories**
+    * **textile**: Clean, wearable clothing → 'textile'. (Pillows, socks, shoes → 'other').
+    * **bulky**: Large furniture, vehicles, tires → 'bulky'.
+    * **food**: Food scraps → 'food'.
+    * **Common Non-Recyclable Plastics (Always 'other')**: Dirty bags, opaque bags, bubble wrap, refill packs, cling film, floss picks, flip-flops, yoga mats, toothbrushes, complex phone cases.
 
 ---
-**6. Naming & Uncertainty Rules**
-* **Naming**: Give concise names (1-4 words). If paper with content, name the paper object. Use label text if it helps identify the *object type* (e.g., 'PET 咖啡瓶', '臉部保養油瓶'). For non-physical items, use names like '螢幕截圖'/'screenshot'.
-* **Uncertainty**: If truly uncertain, choose 'other' and set item_zh to '疑似: <簡短描述>' and item_en to 'suspected: <short description>'.
+**7. Naming & Uncertainty Rules**
+* **Naming**: Concise names (1-4 words). Name the paper object if applicable. Use labels if helpful. Non-physical: '螢幕截圖'/'screenshot'.
+* **Uncertainty**: If truly uncertain, choose 'other', item_zh: '疑似: <描述>', item_en: 'suspected: <description>'.
 
 ---
 *You MUST ONLY output the single required line. Do not add explanations.*
@@ -147,6 +144,7 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call for text: {e}")
             return None
+
 
 
 
