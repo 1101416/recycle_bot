@@ -96,7 +96,7 @@ def insert_default_data(conn):
         # --- 電子廢棄物 (E-waste) ---
         ('ewaste', '大型家電,電視機,電冰箱,洗衣機,冷暖氣機,影印機,音響,抽油煙機', '可交由經銷商逆向回收，或電洽清潔隊約定收運時間。', '回收前請盡量清空內部物品。', 'zh-TW'),
         ('ewaste', '小型家電,行動電話,電熱水瓶,電磁爐,脫水機,電鍋,飲水機,微波爐,烘乾機,吹風機,烤箱,電風扇,電暖爐,烘碗機,咖啡機,收錄音機,傳真機,影音光碟機,錄放影機,充電器', '直接交付資源回收車即可。', '回收前請移除電池並清除個資。', 'zh-TW'),
-        ('ewaste', '資訊物品,筆記型電腦,監視器,螢幕,主機板,硬式磁碟機,電源供應器,機殼,印表機,不斷電系統主機,鍵盤,平板電腦,外接硬碟,行動電源', '可交給資源回收車或送至資訊商品販賣業者逆向回收。', '電腦零件、滑鼠、滑鼠墊等周邊不可回收。另外，部分有價值的電子廢棄物如:二手筆電、顯示器、手機等，可以透過二手交易平台販賣，或交由合法回收處理業者', 'zh-TW'),
+        ('ewaste', '資訊物品,筆記型電腦,監視器,螢幕,主機板,硬式磁碟機,電源供應器,機殼,印表機,不斷電系統主機,鍵盤,平板電腦,外接硬碟,行動電源', '可交給資源回收車或送至資訊商品販賣業者逆向回收。', '電腦零件、滑鼠、滑鼠墊等周邊不可回收。另外，部分有價值的電子廢棄物如：二手筆電、顯示器、手機等，可以透過二手交易平台販賣，或交由合法回收處理業者', 'zh-TW'),
         ('ewaste', '光碟片,CD,VCD,DVD', '請收集後裝成一袋交付回收。', '不含外殼，外殼若為塑膠材質可另行回收。', 'zh-TW'),
         # --- 有害垃圾 (Hazardous) ---
         ('hazard', '廢電池,水銀電池,鹼性電池,鋰電池,鎳鎘電池,充電電池,鈕扣型電池,鉛蓄電池', '交給資源回收車，或連鎖超商、量販店等販賣業者逆向回收。', '車用鉛蓄電池可交由汽_機車行或保修廠回收。', 'zh-TW'),
@@ -134,7 +134,7 @@ def insert_default_data(conn):
         ('plastic', 'Clean packaging styrofoam, fish boxes, ice cream boxes, cake boxes, electronic appliance packaging materials', 'Please remove contents, tape, wood, nails, etc., and rinse clean first.', 'Styrofoam used in construction is not recyclable.', 'en'),
         ('other', 'Plastic film, chemical fiber items, plastic sheets, resin, car seats, lamination film, floor mats, cling wrap, cushions, foam, travel bags, tape, raincoats, ballpoint pens, straws, feed bags, records, brushes, camera film, whiteboard erasers, plastic pencil cases, chopsticks, toothpicks, dental floss, rubber products', 'These are all non-recyclable composite or small-sized items. Please dispose of them as general waste.', 'Excluding scrap tires, which should be recycled separately.', 'en'),
         ('other', 'Dirty plastic bags, plastic bags with an inner foil layer, tea bags, snack bags', 'These types of composite or dirty plastic bags are not recyclable. Please dispose of them as general waste.', 'The criteria is whether the inner layer of the bag is silver or made of another material.', 'en'),
-        ('glass', 'Perfume, Perfume Bottle', 'The "contents" and "empty bottle" must be handled separately. 1. Contents Disposal: Absorb the liquid with a cloth or paper towel. After it evaporates, throw the absorbent material into "General Waste". 2. Bottle Recycling: Recycle the clean, empty bottle based on its material (usually glass).', 'IMPORTANT: Do not pour liquid perfume down the sink or toilet. For aerosol cans, ensure they are completely empty in a ventilated area before recycling as "Metal".', 'en'),
+        ('glass', 'Perfume, Perfume Bottle', 'The "contents" and "empty bottle" must be handled separately. 1. Contents Disposal: Absorb the liquid with a cloth or paper towel. After it evaporates, throw the absorbent material into "General Waste". 2. Bottle Recycling： Recycle the clean, empty bottle based on its material (usually glass).', 'IMPORTANT： Do not pour liquid perfume down the sink or toilet. For aerosol cans, ensure they are completely empty in a ventilated area before recycling as "Metal".', 'en'),
         ('glass', 'Glass containers, glass bottles, wine bottles, glass plates, glass cups, glass bowls, glass candlesticks, window glass, fish tanks', 'Remove lids and straws, empty the contents, and rinse lightly before recycling.', 'Please wrap broken glass in a cardboard box or newspaper and label it as "broken glass" to protect cleaning personnel.', 'en'),
         ('other', 'Insulated glass, car windshields, fireproof glass, glass mats, lighting fixtures, mirrors', 'Due to different material compositions, these cannot be recycled with regular glass. Please dispose of them as general waste or consult the cleaning crew.', 'These are tempered or specially treated glass.', 'en'),
         ('textile', 'Old clothes, tops, pants, skirts, dresses, jackets, suits', 'Items must be wearable. Please wash them, bag them, and hand them to a recycling truck or place in a clothing donation bin.', 'Undergarments are not recycled for hygiene reasons. Clothes must be clean, undamaged, and free of stains or odors.', 'en'),
@@ -157,7 +157,7 @@ def insert_default_data(conn):
         ('other', 'Lubricating oil', 'Should be taken to recycling stations at scooter shops, car repair shops, or gas stations.', 'Do not pour down the sink or mix with other recyclables.', 'en'),
         ('other', 'Cooking oil, used cooking oil, expired cooking oil', 'Please collect it in a plastic container first, then hand it to the recycling truck.', 'Never pour it down the drain as it will cause severe blockages.', 'en'),
         ('other', 'Heating packs', 'Excluding the plastic outer packaging, it can be handed to the recycling truck.', 'This belongs to other recyclable items.', 'en'),
-        ('animal', 'Animal carcass, pet death, pet body, stray animal, roadkill, wild bird, dead bird, cat, dog, bird, dead body', '1. Own Pet Death:\nContact a veterinarian or pet cremation service, OR package the body securely and hand it to the sanitation crew.\n\n2. Stray Animal Death (Roadkill):\nCall the 1999 hotline or contact your local Environmental/Animal Protection Office.\n\n3. Wild Bird Carcass:\nImmediately call your local government hotline (e.g., 1999).', '• Attention！ Robots cannot determine whether an organism is alive. Please seek professional judgment！ \n• If handing to sanitation crew, ensure it is securely sealed.\n• Do not touch stray or wild animals with bare hands.', 'en'),
+        ('animal', 'Animal carcass, pet death, pet body, stray animal, roadkill, wild bird, dead bird, cat, dog, bird, dead body', '1. Own Pet Death：\nContact a veterinarian or pet cremation service, OR package the body securely and hand it to the sanitation crew.\n\n2. Stray Animal Death (Roadkill)：\nCall the 1999 hotline or contact your local Environmental/Animal Protection Office.\n\n3. Wild Bird Carcass：\nImmediately call your local government hotline (e.g., 1999).', '• Attention！ Robots cannot determine whether an organism is alive. Please seek professional judgment！ \n• If handing to sanitation crew, ensure it is securely sealed.\n• Do not touch stray or wild animals with bare hands.', 'en'),
     ]
 
     # --- 2. 通用規則列表 (General Rules) ---
@@ -188,7 +188,7 @@ def insert_default_data(conn):
         ('hazard', 'Hazardous Waste', 'Used batteries, light bulbs/tubes, thermometers, expired medicine, etc. Must be handled by specialized services.', 'Do not mix with other waste to avoid environmental harm.', 'en'),
         ('bulky', 'Bulky Waste', 'Discarded furniture, mattresses, vehicles, tires, etc. Requires a scheduled pickup from your local sanitation department.', 'Do not dump illegally to avoid fines.', 'en'),
         ('animal', 'Animal Carcass', 'Includes pets, stray animals, or wild birds. Please refer to specific disposal methods and do not discard casually.', '• Attention！ Robots cannot determine whether an organism is alive. Please seek professional judgment！ \nPlease do not touch with bare hands; contact specialized units.', 'en'),
-        ('money', 'Currency', '1. Current Circulating Currency (Central Bank issue, from 2000):\nDO NOT DISCARD！ This is legal tender.\n\n2. Old NTD (Notes marked "Bank of Taiwan"):\nTake to any Bank of Taiwan branch to exchange for current currency.', '• Exchange scope: All notes marked "Bank of Taiwan" (except 50th anniv. plastic note) and 5 NTD/1 NTD coins from before 1979.', 'en'),
+        ('money', 'Currency', '1. Current Circulating Currency (Central Bank issue, from 2000)：\nDO NOT DISCARD！ This is legal tender.\n\n2. Old NTD (Notes marked "Bank of Taiwan")：\nTake to any Bank of Taiwan branch to exchange for current currency.', '• Exchange scope： All notes marked "Bank of Taiwan" (except 50th anniv. plastic note) and 5 NTD/1 NTD coins from before 1979.', 'en'),
         ('other', 'Other/General Waste', 'Items that cannot be recycled belong here. Please bag them for the garbage truck.', 'Includes soiled recyclables and composite material items.', 'en'),
     ]
 
@@ -227,6 +227,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with separated expert and general rules！")
+
 
 
 
