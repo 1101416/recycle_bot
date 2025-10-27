@@ -116,6 +116,7 @@ def insert_default_data(conn):
         ('other', '潤滑油', '應交由機車行、汽車維修廠及加油站等設置的廢潤滑油回收站進行回收。', '不可倒入水槽或與其他回收物混合。', 'zh-TW'),
         ('other', '食用油,回鍋油,過期食用油', '請先以塑膠容器盛裝後，交由資源回收車回收。', '切勿倒入排水管，會造成嚴重堵塞。', 'zh-TW'),
         ('other', '暖暖包', '不含塑膠外包裝，可交付資源回收車回收。', '這屬於其他回收項目。', 'zh-TW'),
+        ('other', '大便,糞便,狗大便,貓大便,寵物排泄物,排泄物', '請使用袋子撿拾後，綁緊袋口，丟入一般垃圾桶。', '非人類排泄物切勿沖入馬桶或棄置於路邊水溝，以免污染環境或堵塞管道。', 'zh-TW'),
         # --- 動物屍體 (Animal) ---
         ('animal', '動物屍體,寵物,寵物屍體,寵物遺體,流浪動物,流浪狗,流浪貓,街頭動物屍體,路倒動物,野生禽鳥,鳥屍體,死掉的鳥,貓,狗,鳥,屍體,遺體', '1. 自家寵物死亡：\n委託動物醫院、寵物業者協助處理（火化），或依《廢棄物清理法》自行包裝後交給清潔隊。\n\n2. 街頭流浪動物死亡：\n撥打1999通報專線或聯繫當地環保局/動保處。\n\n3. 野生禽鳥屍體：\n應立即撥打當地政府專線通報（如1999）。', '• 注意！機器人無法判斷生物是否有生命跡象，請尋求專業人士判斷！\n• 若交給清潔隊，請務必妥善密封包裝。\n• 處理流浪/野生動物，請勿徒手接觸。', 'zh-TW'),
 
@@ -124,6 +125,7 @@ def insert_default_data(conn):
         ('paper', 'Magazines, copy paper, wrapping paper, paper tea canisters, memo pads, calendars, paper bags, recycled paper, newspapers, computer paper, flyers, toilet paper rolls, phone books, wall calendars, cardboard boxes, corrugated paper, books, shopping bags, envelopes, business cards, notebooks, fruit protection bags', 'Please remove non-paper items like plastic covers, tape, coils, and staples first. Flatten and bundle for recycling.', 'For fruit protection bags, please remove strings, branches, and tape first.', 'en'),
         ('paper', 'Paper containers, Tetra Paks, Fresh House cartons, paper tableware, paper cups, paper bowls, paper plates, paper boxes', 'Empty the contents, wipe or rinse briefly, then flatten for recycling.', 'For cartons or Tetra Paks, remove the straw before flattening.', 'en'),
         ('other', 'Diapers, used tissues, sanitary pads, carbon paper, wax paper, release paper (sticker backing), transfer paper, thermal paper (e-receipts), sandpaper, glossy plastic-coated paper, soiled paper, firecracker scraps', 'These are all non-recyclable composite materials or soiled paper. Please bag them and hand them to the garbage truck.', 'Thermal paper (like e-receipts) contains chemicals and is not recyclable.', 'en'),
+        ('other', 'feces, poop, dog poop, cat poop, pet waste, excrement', 'Please pick it up using a bag, tie the bag securely, and dispose of it in a general waste bin.', 'Do not flush non-human feces down the toilet or discard in street drains to avoid environmental pollution or pipe blockage.', 'en'),
         ('metal', 'Iron containers, cans, window frames, plates, rods, cages, boxes, railings, pencil cases, doors, shelves, hooks, buckets, bars, bells, cookware, cabinets, wires, thumbtacks, nails, bowls, blocks, chains, sheets, cups, basins, hammerheads, knife blades, umbrella frames, cookie tins, rebar', 'Please empty the contents and rinse lightly before recycling.', 'Composite materials like umbrella fabric and cushions must be removed; only recycle the frame.', 'en'),
         ('metal', 'Aluminum containers, cans, pots, basins, window frames, alloy wheels', 'Empty the contents, rinse lightly, and flatten for recycling.', 'Keep them dry and clean.', 'en'),
         ('metal', 'Copper-clad wires, stainless steel products, metal staplers, metal vegetable baskets, metal scissors, metal spoons, forks, keys, door locks, metal hangers, copper products, stainless steel gas stoves, steel rims', 'Hand them directly to the recycling truck.', 'The outer plastic sheath of wires does not need to be stripped.', 'en'),
@@ -227,6 +229,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with separated expert and general rules！")
+
 
 
 
