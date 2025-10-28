@@ -243,10 +243,10 @@ class LineMessageHandler:
 
     def handle_text_message(self, event):
         """
-        處理文字訊息 (v6 - 調整判斷順序)：
+        處理文字訊息 (v7 - 修正聊天判斷邏輯)：
         1. 檢查指令。
         2. 非指令 -> 送 AI 分類。
-        3. 檢查 AI 結果是否為 'other' 且輸入疑似聊天 -> 回覆提示。
+        3. 檢查 AI 結果是否為 'other' 且輸入**屬於常見聊天詞彙** -> 回覆提示。
         4. 檢查 AI 結果是否為非實體物品 -> 回覆提示。
         5. 正常顯示分類結果。
         """
@@ -281,14 +281,16 @@ class LineMessageHandler:
                 item_en = classification_result.get('item_name_en', '').lower()
 
                 # --- 3. **優先**檢查是否為 'other' 且疑似聊天 ---
-                common_chat_words_zh = ['你好', '哈囉', '嗨', '謝謝', '感謝', '嗯嗯', '喔喔', '掰掰','哈囉']
+                #    (移除中文的 len <= 2 判斷)
+                common_chat_words_zh = ['你好', '哈囉', '嗨', '謝謝', '感謝', '嗯嗯', '喔喔', '掰掰', '哈囉', '你好啊'] # 可以持續擴充
                 common_chat_words_en = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'ok', 'okay', 'bye']
                 is_potential_chat = False
                 if category == 'other':
                     if user_lang == 'zh-TW':
-                        if len(raw_text) <= 2 or any(word in raw_text for word in common_chat_words_zh):
+                        # 修正：只檢查是否包含在聊天詞彙列表
+                        if any(word in raw_text for word in common_chat_words_zh):
                             is_potential_chat = True
-                    else:
+                    else: # 英文或其他 (維持原判斷：單字或在列表中)
                         if len(raw_text.split()) <= 1 or raw_text.lower() in common_chat_words_en:
                              is_potential_chat = True
 
@@ -695,6 +697,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
