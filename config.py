@@ -45,8 +45,10 @@ class Config:
         'bulky': '大型廢棄物',
         'animal': '動物屍體',
         'money': '金錢(貨幣)',
+        'chat': '聊天訊息',
         'other': '其他/一般垃圾'
     }
+
 
 
 
