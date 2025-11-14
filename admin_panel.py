@@ -1,3 +1,6 @@
+# 檔案: admin_panel.py
+# (此版本已移除 /api/send-message 和 /api/broadcast 功能)
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -217,15 +220,20 @@ def classifications():
 def waste_info():
     """垃圾資訊管理"""
     try:
-        # 取得垃圾資訊
-        waste_info_data = get_waste_info_list()
+        # 取得垃圾資訊 (註：這會讀取新的 expert 和 general 表)
+        waste_info_data_expert = get_waste_info_list('waste_info_expert')
+        waste_info_data_general = get_waste_info_list('waste_info_general')
         
-        return render_template('admin/waste_info.html', waste_info=waste_info_data)
+        return render_template('admin/waste_info.html', 
+                             waste_info_expert=waste_info_data_expert,
+                             waste_info_general=waste_info_data_general)
     
     except Exception as e:
         logger.error(f"載入垃圾資訊失敗: {str(e)}")
         flash('載入垃圾資訊時發生錯誤！', 'error')
-        return render_template('admin/waste_info.html', waste_info=[])
+        return render_template('admin/waste_info.html', 
+                             waste_info_expert=[],
+                             waste_info_general=[])
 
 @app.route('/admin/news')
 @login_required
@@ -299,48 +307,14 @@ def api_classifications():
         logger.error(f"取得分類記錄失敗: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/admin/api/send-message', methods=['POST'])
-@login_required
-def api_send_message():
-    """API: 發送訊息"""
-    try:
-        data = request.get_json()
-        user_id = data.get('user_id')
-        message = data.get('message')
-        
-        if not user_id or not message:
-            return jsonify({'error': '缺少必要參數'}), 400
-        
-        success = scheduler.send_custom_message(user_id, message)
-        
-        if success:
-            return jsonify({'success': True, 'message': '訊息發送成功'})
-        else:
-            return jsonify({'error': '訊息發送失敗'}), 500
-    
-    except Exception as e:
-        logger.error(f"發送訊息失敗: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# --- vvv 已移除 /admin/api/send-message vvv ---
+# (此 API 路由已刪除，因為 scheduler.send_custom_message 不再存在)
+# --- ^^^ 已移除 /admin/api/send-message ^^^ ---
 
-@app.route('/admin/api/broadcast', methods=['POST'])
-@login_required
-def api_broadcast():
-    """API: 廣播訊息"""
-    try:
-        data = request.get_json()
-        message = data.get('message')
-        language = data.get('language')
-        
-        if not message:
-            return jsonify({'error': '缺少訊息內容'}), 400
-        
-        sent_count = scheduler.send_broadcast_message(message, language)
-        
-        return jsonify({'success': True, 'sent_count': sent_count})
-    
-    except Exception as e:
-        logger.error(f"廣播訊息失敗: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# --- vvv 已移除 /admin/api/broadcast vvv ---
+# (此 API 路由已刪除，因為 scheduler.send_broadcast_message 不再存在)
+# --- ^^^ 已移除 /admin/api/broadcast ^^^ ---
+
 
 def get_recent_classifications(limit: int = 10) -> List[Dict]:
     """取得最近的分類記錄"""
@@ -472,15 +446,23 @@ def get_classifications_list(page: int, per_page: int) -> Dict:
         logger.error(f"取得分類記錄列表失敗: {str(e)}")
         return {'classifications': [], 'total': 0, 'page': 1, 'per_page': per_page, 'total_pages': 0}
 
-def get_waste_info_list() -> List[Dict]:
-    """取得垃圾資訊列表"""
+def get_waste_info_list(table_name: str) -> List[Dict]:
+    """取得垃圾資訊列表 (從指定表格)"""
     try:
         with sqlite3.connect('database.db') as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT category, name, disposal_method, tips, language, created_at
-                FROM waste_info
-                ORDER BY category, language, name
+            
+            # 檢查表格名稱是否安全 (防止 SQL 注入)
+            if table_name not in ['waste_info_expert', 'waste_info_general']:
+                raise ValueError("Invalid table name")
+
+            # 根據表格名稱調整 SQL 查詢
+            name_column = 'name_keywords' if table_name == 'waste_info_expert' else 'name'
+            
+            cursor.execute(f'''
+                SELECT category, {name_column}, disposal_method, tips, language
+                FROM {table_name}
+                ORDER BY category, language, {name_column}
             ''')
             
             results = cursor.fetchall()
@@ -491,30 +473,35 @@ def get_waste_info_list() -> List[Dict]:
                     'name': row[1],
                     'disposal_method': row[2],
                     'tips': row[3],
-                    'language': row[4],
-                    'created_at': row[5]
+                    'language': row[4]
                 }
                 for row in results
             ]
     
     except Exception as e:
-        logger.error(f"取得垃圾資訊列表失敗: {str(e)}")
+        logger.error(f"取得垃圾資訊列表失敗 (表: {table_name}): {str(e)}")
         return []
 
 def get_news_list(page: int, per_page: int) -> Dict:
     """取得新聞列表"""
+    # (假設您在 database.py 中有 add_news, 但沒有建立 news 表格)
+    # (如果 news 表格不存在，這個函式會失敗，但暫時保留)
     try:
         with sqlite3.connect('database.db') as conn:
             cursor = conn.cursor()
             
+            # 檢查 news 表格是否存在
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='news'")
+            if not cursor.fetchone():
+                logger.warning("`news` table does not exist. Skipping news query.")
+                return {'news': [], 'total': 0, 'page': 1, 'per_page': per_page, 'total_pages': 0}
+
             # 計算總數
             cursor.execute('SELECT COUNT(*) FROM news')
             total = cursor.fetchone()[0]
             
-            # 計算偏移量
             offset = (page - 1) * per_page
             
-            # 取得新聞
             cursor.execute('''
                 SELECT id, title, content, url, language, published_at, created_at
                 FROM news
