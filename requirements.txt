@@ -14,5 +14,6 @@ requests==2.31.0
 
 # 其他工具
 python-dotenv==1.0.0
-
+beautifulsoup4
 APScheduler
+
