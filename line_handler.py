@@ -72,8 +72,8 @@ TEXTS = {
 🌏 想用其他語言，請點「語言選擇」👇""",
         
         'location_title': '📍 附近垃圾車資訊 (新北市)',
-        'location_searching': '正在查詢您附近 200 公尺內的新北市垃圾車，請稍候...',
-        'location_not_found': '抱歉，目前在您附近 200 公尺內找不到即時垃圾車資訊。',
+        'location_searching': '正在查詢您附近 100 公尺內的新北市垃圾車，請稍候...',
+        'location_not_found': '抱歉，目前在您附近 100 公尺內找不到即時垃圾車資訊。',
         'location_api_error': '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。',
         'news_not_configured': '抱歉，系統尚未設定新聞來源（NEWS_API_URL）。請聯絡管理員。',
         'news_no_items': '抱歉，目前沒有可顯示的新聞。'
@@ -130,8 +130,8 @@ Or tap the menu below or type /help for more functions!""",
         'error_unrecognized': 'Sorry, I couldn’t recognize the type of waste in this image.\nPlease make sure :\n• The image is clear\n• The waste item is the main focus\n• The lighting is sufficient\n\nTry taking a photo that shows the product label or type name instead.',
         'default_reply': 'Please upload a photo or type text for classification, or type /help to see all commands!',
         'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
-        'location_searching': 'Searching for garbage trucks within 200 m of your location, please wait...',
-        'location_not_found': 'Sorry, no real-time garbage truck information found within 200 m of your location.',
+        'location_searching': 'Searching for garbage trucks within 100 m of your location, please wait...',
+        'location_not_found': 'Sorry, no real-time garbage truck information found within 100 m of your location.',
         'location_api_error': 'Sorry, an error occurred while fetching garbage truck information. Please try again later.',
         'news_not_configured': 'Sorry, news source (NEWS_API_URL) is not configured. Contact admin.',
         'news_no_items': 'Sorry, no news items available at the moment.'
@@ -515,14 +515,14 @@ class LineMessageHandler:
             # 優先使用經緯度查詢（若有）
             if user_lat is not None and user_lng is not None and self.garbage_truck_api:
                 try:
-                    nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=200)
+                    nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=100)
                 except Exception:
                     logger.exception("Error calling get_schedules_by_location")
 
             # 若經緯度查詢沒結果，再 fallback 用 address
             if not nearby and address and self.garbage_truck_api:
                 try:
-                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=200)
+                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=100)
                 except Exception:
                     logger.exception("Error calling get_schedules_by_address")
 
@@ -684,6 +684,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
