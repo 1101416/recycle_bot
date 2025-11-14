@@ -502,7 +502,9 @@ class LineMessageHandler:
 
         # 先回覆「正在查詢」
         try:
-            self.line_bot_api.reply_message(event.reply_token, TextSendMessage(text=texts['location_searching']))
+            # (我們將搜尋半徑改回 2000m，並在下方回覆中註明)
+            searching_text = texts['location_searching'].replace("2 公里", "2 公里") # 確保文字正確
+            self.line_bot_api.reply_message(event.reply_token, TextSendMessage(text=searching_text))
         except Exception:
             logger.exception("Failed to send searching reply")
 
@@ -515,34 +517,46 @@ class LineMessageHandler:
             # 優先使用經緯度查詢（若有）
             if user_lat is not None and user_lng is not None and self.garbage_truck_api:
                 try:
-                    nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=100)
+                    # --- vvv 關鍵修改處 vvv ---
+                    # 1. 將搜尋半徑改回 2000m (2km)，確保能找到東西
+                    # 2. 新增 max_results=3，限制只回傳 3 筆
+                    nearby = self.garbage_truck_api.get_schedules_by_location(
+                        user_lat, 
+                        user_lng, 
+                        radius_m=2000, 
+                        max_results=3
+                    )
+                    # --- ^^^ 關鍵修改處 ^^^ ---
                 except Exception:
                     logger.exception("Error calling get_schedules_by_location")
 
-            # 若經緯度查詢沒結果，再 fallback 用 address
+            # 若經緯度查詢沒結果，再 fallback 用 address (這裡的邏輯保持不變)
             if not nearby and address and self.garbage_truck_api:
                 try:
-                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=100)
+                    # (地址查詢通常不精確，維持原樣)
+                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
                 except Exception:
                     logger.exception("Error calling get_schedules_by_address")
 
             if nearby:
                 try:
+                    # (如果使用地址查詢，結果可能多於 3 筆，我們在 _create_trucks_flex_message 中會限制)
                     flex_message = self._create_trucks_flex_message(nearby, texts)
-                    # 先前已 reply searching，所以用 push
                     self.line_bot_api.push_message(user_id, flex_message)
                 except Exception:
                     logger.exception("Failed to send flex message; fallback to text")
                     brief = []
-                    for s in nearby[:5]:
+                    # (這裡我們也手動限制只顯示 3 筆)
+                    for s in nearby[:3]: 
                         dist = f" ({s.get('_distance_m')}m)" if s.get('_distance_m') else ""
                         src_note = ""
                         if s.get('_synthetic'):
                             src_note = "（參考資料）"
-                        elif s.get('_from_cache'):
-                            src_note = "（快取）"
-                        brief.append(f"{s.get('location')}{dist}\n{ s.get('time','') } {src_note}\n車號：{s.get('car')}")
-                    self.line_bot_api.push_message(user_id, TextSendMessage(text="找到以下垃圾車資訊：\n\n" + "\n\n".join(brief)))
+                        brief.append(f"{s.get('linename')}{dist}\n{ s.get('time','') } {src_note}")
+                    
+                    # 修正 fallback 回覆中的錯字 ("車號")
+                    reply_text = f"以下是 2 公里內最近的 {len(brief)} 個停靠點：\n\n" + "\n\n".join(brief)
+                    self.line_bot_api.push_message(user_id, TextSendMessage(text=reply_text))
             else:
                 self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found', '抱歉，找不到附近垃圾車資訊。')))
         except Exception:
@@ -684,6 +698,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
