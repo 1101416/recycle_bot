@@ -1,11 +1,14 @@
 # 檔案: garbage_truck_api.py
-# (此版本 v2.0 已修正分頁邏輯，可抓取所有資料)
+# (此版本 v3.0 已修正為「快取優先」邏輯，每日更新一次)
 
 import os
 import json
 import logging
 import math
 from typing import List, Dict, Any, Optional
+# --- vvv 新增 import vvv ---
+from datetime import datetime
+# --- ^^^ 新增 import ^^^ ---
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -23,6 +26,11 @@ TIMEOUT_SEC = int(os.getenv("NTPC_TIMEOUT_SEC", "15"))
 RETRY_TOTAL = int(os.getenv("NTPC_RETRY_TOTAL", "3"))
 RETRY_BACKOFF = float(os.getenv("NTPC_RETRY_BACKOFF", "0.8"))
 USE_SYNTHETIC_FALLBACK = os.getenv("NTPC_USE_SYNTH_FALLBACK", "true").lower() not in ("0","false","no")
+
+# --- vvv 新增快取時間 (24 * 60 * 60 = 86400 秒) vvv ---
+CACHE_MAX_AGE_SECONDS = 86400 
+# --- ^^^ 新增快取時間 ^^^ ---
+
 
 # --- ( _make_session_with_retries, haversine_distance_m, _save_cache, _load_cache 保持不變 ) ---
 def _make_session_with_retries(total=RETRY_TOTAL, backoff=RETRY_BACKOFF) -> requests.Session:
@@ -65,7 +73,7 @@ def _load_cache(path: str = CACHE_PATH) -> Optional[Any]:
     return None
 # --- ( _make_session_with_retries, haversine_distance_m, _save_cache, _load_cache 結束 ) ---
 
-
+# --- ( _extract_items_from_json, _try_parse_xml, _get_field_case_insensitive, _try_extract_latlon 保持不變 ) ---
 def _extract_items_from_json(json_obj: Any) -> List[Dict]:
     if isinstance(json_obj, list):
         return json_obj
@@ -76,7 +84,6 @@ def _extract_items_from_json(json_obj: Any) -> List[Dict]:
         for k,v in json_obj.items():
             if isinstance(v, list):
                 return v
-        # 如果 API 回傳的是單一物件而非列表
         return [json_obj]
     return []
 
@@ -94,7 +101,6 @@ def _try_parse_xml(text: str) -> List[Dict]:
             items.append(item)
     return items
 
-# --- ( _get_field_case_insensitive, _try_extract_latlon 保持不變 ) ---
 def _get_field_case_insensitive(obj: Dict, candidates: List[str], default=None):
     if not isinstance(obj, dict):
         return default
@@ -109,14 +115,8 @@ def _get_field_case_insensitive(obj: Dict, candidates: List[str], default=None):
     return default
 
 def _try_extract_latlon(it: Dict) -> Optional[tuple]:
-    """
-    嘗試從 item 中抽出 (lat, lng)；支援各種常見欄位與 geometry (coordinates)
-    回傳 (lat, lng) 或 None
-    """
-    # 常見欄位
     lat_keys = ['lat','latitude','緯度','LAT','Latitude','Y','y']
     lon_keys = ['lng','lon','longitude','經度','LON','LONG','Longitude','X','x']
-
     for lk in lat_keys:
         if lk in it:
             for ok in lon_keys:
@@ -126,18 +126,15 @@ def _try_extract_latlon(it: Dict) -> Optional[tuple]:
                         return (lat, lon)
                     except Exception:
                         continue
-    # geometry coordinate (可能為 [lon,lat])
     geom = _get_field_case_insensitive(it, ['geometry','Geometry','geom','location'], default=None)
     if isinstance(geom, dict):
         coords = geom.get('coordinates') or geom.get('coordinate') or geom.get('coords')
         if isinstance(coords, (list,tuple)) and len(coords) >= 2:
             try:
-                # 常見為 [lng, lat]
                 lng = float(coords[0]); lat = float(coords[1])
                 return (lat, lng)
             except Exception:
                 pass
-    # 有些 API 把 lat/lon 放在同一個字串欄位 "位置" 中，用逗號分隔，嘗試解析
     for candidate in ['位置','position','pos','latlng','LatLng']:
         val = _get_field_case_insensitive(it, [candidate], default=None)
         if isinstance(val, str) and ',' in val:
@@ -148,34 +145,28 @@ def _try_extract_latlon(it: Dict) -> Optional[tuple]:
                     return (lat, lon)
                 except Exception:
                     try:
-                        # sometimes order is lng,lat
                         lon = float(parts[0].strip()); lat = float(parts[1].strip())
                         return (lat, lon)
                     except Exception:
                         pass
     return None
-# --- ( _get_field_case_insensitive, _try_extract_latlon 結束 ) ---
+# --- ( _extract_items_from_json, _try_parse_xml, _get_field_case_insensitive, _try_extract_latlon 結束 ) ---
 
 
 class NewTaipeiTruckAPI:
     def __init__(self, api_url: str = None):
         self.api_url = api_url or DEFAULT_NTPC_API_JSON
         self.session = _make_session_with_retries()
+        # --- vvv 這裡的 _fetch_api 保持不變 (仍是 v2.0 的分頁下載邏輯) vvv ---
+        self.all_data_cache = None # 新增一個實例變數來暫存記憶體中的資料
 
-    # --- vvv 這裡是主要修改處 vvv ---
     def _fetch_api(self) -> Optional[List[Dict]]:
-        """
-        (v2.0) 抓取所有分頁的資料並合併。
-        回傳合併後的 items 列表，或在失敗時回傳 None。
-        """
+        """ (v2.0) 抓取所有分頁的資料並合併。 """
         headers = {"User-Agent": "RecycleBot/1.0", "Accept": "application/json, text/xml;q=0.8"}
         all_items: List[Dict] = []
         page = 0
-        
-        # API 最大筆數似乎限制在 1000，我們用 500 比較保險
         page_size = 500 
         
-        # 新增迴圈來處理分頁
         while True:
             params = {"page": page, "size": page_size}
             try:
@@ -198,38 +189,29 @@ class NewTaipeiTruckAPI:
                         raw_page_data = items_xml
                     else:
                         try:
-                            raw_page_data = r.json() # 再次嘗試 JSON
+                            raw_page_data = r.json() 
                         except Exception:
                             logger.error("Unknown NTPC API response format (Page %d)", page)
-                            # 如果第一頁就解析失敗，才回傳 None
-                            if page == 0:
-                                return None
-                            # 如果是後續頁面失敗，至少回傳目前已抓到的
+                            if page == 0: return None
                             break 
                 
                 if raw_page_data is None:
-                    if page == 0:
-                        return None
+                    if page == 0: return None
                     break
 
-                # 從該頁的 raw data 中提取 items 列表
                 page_items = _extract_items_from_json(raw_page_data)
                 
-                # 如果 API 回傳空列表，表示已經沒有更多資料了
                 if not page_items:
                     logger.info("Reached end of data at page %d.", page)
                     break
                 
                 all_items.extend(page_items)
                 
-                # 如果回傳的資料筆數小於要求的筆數，也代表是最後一頁了
                 if len(page_items) < page_size:
                     logger.info("Last page detected (items %d < size %d) at page %d.", len(page_items), page_size, page)
                     break
 
                 page += 1
-                
-                # 安全閥：防止無限迴圈 (26821 筆 / 500 = 54 頁，設 100 頁綽綽有餘)
                 if page > 100:
                     logger.warning("Reached safety limit (100 pages). Stopping fetch.")
                     break
@@ -242,10 +224,7 @@ class NewTaipeiTruckAPI:
                 except Exception:
                     logger.exception("NTPC API request failed (Page %d)", page)
                 
-                # 如果第一頁就抓取失敗，回傳 None
-                if page == 0:
-                    return None
-                # 如果是中途失敗，至少回傳目前已有的資料
+                if page == 0: return None
                 else:
                     logger.warning("Returning %d items fetched before failure.", len(all_items))
                     break
@@ -256,55 +235,65 @@ class NewTaipeiTruckAPI:
             
         logger.info("Fetched a total of %d items from NTPC API.", len(all_items))
         return all_items
-    # --- ^^^ 這裡是主要修改處 ^^^ ---
+    # --- ^^^ _fetch_api 保持不變 ^^^ ---
 
+    # --- vvv 這裡是主要修改處 (v3.0 快取邏輯) vvv ---
+    def _get_all_data(self) -> Optional[List[Dict]]:
+        """
+        (v3.0) 檢查檔案快取，如果過期或不存在，才呼叫 _fetch_api()
+        """
+        # 1. 檢查記憶體快取 (如果伺服器沒重啟)
+        if self.all_data_cache:
+             logger.info("Loading NTPC data from memory cache.")
+             return self.all_data_cache
+
+        # 2. 檢查檔案快取 (如果伺服器重啟)
+        used_cache = False
+        items = None
+        if os.path.exists(CACHE_PATH):
+            try:
+                file_mod_time = os.path.getmtime(CACHE_PATH)
+                # 檢查快取是否在 24 小時 (86400 秒) 內
+                if (datetime.now().timestamp() - file_mod_time) < CACHE_MAX_AGE_SECONDS:
+                    logger.info(f"Cache file is fresh (under {CACHE_MAX_AGE_SECONDS}s old). Loading from cache file.")
+                    items = _load_cache(CACHE_PATH)
+                    if items:
+                        used_cache = True
+                else:
+                    logger.info(f"Cache file is stale (over {CACHE_MAX_AGE_SECONDS}s old). Fetching new data.")
+            except Exception as e:
+                logger.warning(f"Could not read cache file mtime or load cache: {e}. Fetching new data.")
+        
+        # 3. 如果快取不存在或已過期，才執行 2 分鐘的下載
+        if not used_cache:
+            logger.info("No valid cache found. Fetching from API (this may take ~2 minutes)...")
+            items = self._fetch_api()
+            
+            # 如果下載成功，寫入快取
+            if items:
+                _save_cache(items, CACHE_PATH)
+            else:
+                logger.error("Failed to fetch new data from API and no valid cache available.")
+                return None # 確定失敗
+        
+        # 4. 將資料存入記憶體快取並回傳
+        if items:
+            self.all_data_cache = items
+        return items
 
     def get_schedules_by_location(self, lat: float, lng: float, radius_m: int = 2000, max_results: int = 8) -> List[Dict]:
-        """
-        以經緯度做篩選（主方法）。
-        """
-        # 1) 先抓 API 或快取
+        """ (v3.0) 以經緯度做篩選 """
         
-        # --- vvv 修改處 vvv ---
-        # _fetch_api() 現在會回傳 items 列表或 None
-        items = self._fetch_api() 
-        # --- ^^^ 修改處 ^^^ ---
-        
-        used_cache = False
-        if items is None:
-            logger.warning("NTPC API fetch failed, trying cache")
-            cached = _load_cache()
-            if cached:
-                # 假設快取中儲存的是 items 列表
-                items = cached 
-                used_cache = True
-            else:
-                logger.warning("No NTPC cache found")
-                if USE_SYNTHETIC_FALLBACK:
-                    # ... (synthetic fallback 保持不變) ...
-                    return [{"car": "未知車號", "location": "您附近（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
-                return []
-
-        if not used_cache:
-            try:
-                # --- vvv 修改處 vvv ---
-                _save_cache(items, CACHE_PATH) # 直接儲存 items 列表
-                # --- ^^^ 修改處 ^^^ ---
-            except Exception:
-                logger.exception("Save cache failed")
-
-        # --- vvv 修改處 vvv ---
-        # items = _extract_items_from_json(json_obj) # <-- 這行已多餘，刪除
-        # --- ^^^ 修改處 ^^^ ---
+        # 1) 呼叫新的快取邏輯函式
+        items = self._get_all_data()
         
         if not items:
-            logger.warning("No items found in NTPC data")
+            logger.warning("No NTPC data available (fetch failed and no cache).")
             if USE_SYNTHETIC_FALLBACK:
-                 # ... (synthetic fallback 保持不變) ...
                 return [{"car": "未知車號", "location": "您附近（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
             return []
-
-        # 2) 先嘗試用座標做 proximity search
+        
+        # 2) 座標 proximity search (保持不變)
         proximity_results = []
         for it in items:
             if not isinstance(it, dict):
@@ -314,7 +303,6 @@ class NewTaipeiTruckAPI:
                 try:
                     d = haversine_distance_m(lat, lng, latlon[0], latlon[1])
                     if d <= radius_m:
-                        # ... (抽出欄位 保持不變) ...
                         caption = _get_field_case_insensitive(it, ['路線名稱','caption','Caption','location','name','名稱']) or _get_field_case_insensitive(it, ['地址','address','Address'], default='未知地點')
                         time_field = _get_field_case_insensitive(it, ['收運時間','time','Time','收運時段','service_time','timetable','清運時間']) or ""
                         car_field = _get_field_case_insensitive(it, ['車牌號碼','car_no','car','車號','車牌']) or "未知車號"
@@ -325,28 +313,24 @@ class NewTaipeiTruckAPI:
                             "city": "新北市",
                             "_distance_m": int(d)
                         }
-                        if used_cache:
-                            res["_from_cache"] = True
+                        # 標記 _from_cache (現在 _get_all_data 處理了)
+                        # res["_from_cache"] = used_cache # (這部分邏輯可以簡化或移除)
                         proximity_results.append(res)
                 except Exception:
                     logger.exception("Distance calc failed for item: %s", it)
                     continue
 
         if proximity_results:
-            # ... (排序 保持不變) ...
             proximity_results.sort(key=lambda x: x["_distance_m"])
             logger.info("Found %d proximity results", len(proximity_results))
             return proximity_results[:max_results]
 
-        # 3) Fallback
         logger.info("No proximity results found (no coords or outside radius). Returning empty to let caller fallback to address match.")
         return []
 
-
     def get_schedules_by_address(self, address: str, radius_m: int = 2000) -> List[Dict]:
-        """
-        保留 address-based 查詢（較不精準）。
-        """
+        """ (v3.0) 保留 address-based 查詢 """
+        
         if not address:
             return []
         # ... (地址解析 保持不變) ...
@@ -368,35 +352,21 @@ class NewTaipeiTruckAPI:
             district = ""
             road = ""
 
-        # --- vvv 修改處 (同上) vvv ---
-        items = self._fetch_api()
-        used_cache = False
-        if items is None:
-            cached = _load_cache()
-            if cached:
-                items = cached
-                used_cache = True
-            else:
-                if USE_SYNTHETIC_FALLBACK:
-                     # ... (synthetic fallback 保持不變) ...
-                    return [{"car": "未知車號", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
-                return []
+        # 1) 呼叫新的快取邏輯函式
+        items = self._get_all_data()
 
-        if not used_cache:
-            try:
-                _save_cache(items, CACHE_PATH)
-            except Exception:
-                logger.exception("Save cache failed")
-
-        # items = _extract_items_from_json(json_obj) # <-- 這行已多餘，刪除
-        # --- ^^^ 修改處 (同上) ^^^ ---
-
+        if not items:
+            logger.warning("No NTPC data available (fetch failed and no cache).")
+            if USE_SYNTHETIC_FALLBACK:
+                return [{"car": "未知車號", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
+            return []
+        
+        # 2) 文字比對 (保持不變)
         results = []
         for it in items:
             if not isinstance(it, dict):
                 continue
             try:
-                # ... (欄位比對 保持不變) ...
                 area = _get_field_case_insensitive(it, ['行政區','AREA','area','district','區域'])
                 caption = _get_field_case_insensitive(it, ['路線名稱','caption','Caption','location','Location','name','名稱'])
                 time_field = _get_field_case_insensitive(it, ['收運時間','time','Time','收運時段','service_time','timetable','清運時間'])
@@ -415,6 +385,6 @@ class NewTaipeiTruckAPI:
                 continue
 
         if not results and USE_SYNTHETIC_FALLBACK:
-             # ... (synthetic fallback 保持不變) ...
             return [{"car": "未知車號", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
         return results
+    # --- ^^^ 這裡是主要修改處 (v3.0 快取邏輯) ^^^ ---
