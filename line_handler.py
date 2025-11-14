@@ -578,7 +578,6 @@ class LineMessageHandler:
         """建立「清運時間表」的 Flex Message 輪播卡片"""
         bubbles = []
         for schedule in schedules[:10]: # 最多顯示 10 筆結果
-            # 顯示 time 並加上來源註記（如果有）
             time_text = schedule.get('time', '')
             if schedule.get('_synthetic'):
                 time_text = f"{time_text}\n（系統提示：此資料為快取/參考，非即時）"
@@ -592,7 +591,11 @@ class LineMessageHandler:
                     spacing='md',
                     contents=[
                         TextComponent(text=f"📍 {schedule['location']}", weight='bold', size='md', color='#1DB446', wrap=True),
-                        TextComponent(text=f"🚛 {schedule.get('city','')} - {schedule.get('car','')}", size='xs', color='#AAAAAA', margin='md'),
+                        
+                        # --- vvv 修改處：修正「未知車號」 vvv ---
+                        TextComponent(text=f"🚛 {schedule.get('linename', '未知路線')}", size='xs', color='#AAAAAA', margin='md'),
+                        # --- ^^^ 修改處 ^^^ ---
+                        
                         SeparatorComponent(margin='lg'),
                         BoxComponent(
                             layout='vertical',
@@ -615,7 +618,6 @@ class LineMessageHandler:
 
         carousel_contents = {"type": "carousel", "contents": [bubble.as_json_dict() for bubble in bubbles]}
         
-        # 以 texts 裡的 location_title 為 alt_text；若沒有，使用預設
         alt_text = texts.get('location_title', '垃圾車清運時間表')
 
         return FlexSendMessage(
@@ -682,6 +684,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
