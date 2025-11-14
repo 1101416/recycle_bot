@@ -515,14 +515,14 @@ class LineMessageHandler:
             # 優先使用經緯度查詢（若有）
             if user_lat is not None and user_lng is not None and self.garbage_truck_api:
                 try:
-                    nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=2000)
+                    nearby = self.garbage_truck_api.get_schedules_by_location(user_lat, user_lng, radius_m=500)
                 except Exception:
                     logger.exception("Error calling get_schedules_by_location")
 
             # 若經緯度查詢沒結果，再 fallback 用 address
             if not nearby and address and self.garbage_truck_api:
                 try:
-                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
+                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=500)
                 except Exception:
                     logger.exception("Error calling get_schedules_by_address")
 
@@ -682,6 +682,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
