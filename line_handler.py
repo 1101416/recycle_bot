@@ -14,7 +14,7 @@ from image_classifier import ImageClassifier
 from recycle_db import RecycleDatabase
 # 原本： from garbage_truck_api import GarbageTruckAPI
 from garbage_truck_api import NewTaipeiTruckAPI
-
+from clothing_box_finder import ClothingBoxFinder
 logger = logging.getLogger(__name__)
 
 # --- 多語言文案庫 (已加入位置相關文案) ---
@@ -42,8 +42,7 @@ TEXTS = {
 • 輸入「欲做分類的垃圾名稱」 - 幫該垃圾做分類，如輸入：娃娃
 
 📍 位置功能
-• 傳送位置資訊可查詢附近垃圾車時間
-• 輸入/clothes並傳送位置資訊可查詢附近舊衣回收箱
+傳送位置資訊可查詢附近垃圾車時間與舊衣回收箱
 
 🌏 目前的語言支援
 支援繁體中文、英文
@@ -72,9 +71,12 @@ TEXTS = {
 🌏 想用其他語言，請點「語言選擇」👇""",
         
         'location_title': '📍 附近垃圾車資訊 (新北市)',
-        'location_searching': '正在查詢您附近 100 公尺內的新北市垃圾車，請稍候...',
-        'location_not_found': '抱歉，目前在您附近 100 公尺內找不到即時垃圾車資訊。',
+        'location_searching': '正在查詢您附近 2 公里內最近的垃圾車與舊衣回收箱，請稍候...',
+        'location_not_found': '抱歉，目前在您附近 2 公里內找不到垃圾車或舊衣回收箱資訊。',
         'location_api_error': '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。',
+        'clothing_box_title': '📍 附近舊衣回收箱', 
+        'clothing_box_not_found': '您附近 2 公里內未找到舊衣回收箱。',
+        'truck_not_found': '您附近 2 公里內未找到垃圾車資訊。', 
         'news_reply': """📰 點擊查看最新的環保新聞：
 https://www.moenv.gov.tw/press/press-releases/2626.html""",
         'news_not_configured': '抱歉，系統尚未設定新聞來源（NEWS_API_URL）。請聯絡管理員。',
@@ -108,8 +110,7 @@ Upload a photo of waste, and I will automatically identify the category and prov
 • Type the name of an item - I will classify it
 
 📍 Location Features
-• Send your location to find nearby garbage truck schedules
-• enter /clothes and then send your location to find nearby clothing donation boxes
+Location information can be sent to check the nearest garbage truck schedules and used clothing donation boxes.
 
 🌏 Supported Languages
 Supports Traditional Chinese and English.
@@ -132,8 +133,11 @@ Or tap the menu below or type /help for more functions!""",
         'error_unrecognized': 'Sorry, I couldn’t recognize the type of waste in this image.\nPlease make sure :\n• The image is clear\n• The waste item is the main focus\n• The lighting is sufficient\n\nTry taking a photo that shows the product label or type name instead.',
         'default_reply': 'Please upload a photo or type text for classification, or type /help to see all commands!',
         'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
-        'location_searching': 'Searching for garbage trucks within 100 m of your location, please wait...',
-        'location_not_found': 'Sorry, no real-time garbage truck information found within 100 m of your location.',
+        'location_searching': 'Searching for the nearest garbage trucks and clothing boxes within 2 km, please wait...',
+        'location_not_found': 'Sorry, no garbage trucks or clothing boxes found within 2 km.',
+        'clothing_box_title': '📍 Nearby Clothing Boxes', 
+        'clothing_box_not_found': 'No clothing boxes found within 2 km.', 
+        'truck_not_found': 'No garbage truck info found within 2 km.', 
         'location_api_error': 'Sorry, an error occurred while fetching garbage truck information. Please try again later.',
         'news_reply': """📰 Click here for the latest environmental news:
 https://www.moenv.gov.tw/press/press-releases/2626.html""",
@@ -153,6 +157,13 @@ class LineMessageHandler:
         except Exception:
             logger.exception("Failed to initialize NewTaipeiTruckAPI")
             self.garbage_truck_api = None
+
+        try:
+            self.clothing_finder = ClothingBoxFinder()
+            logger.info("ClothingBoxFinder initialized and loaded data.")
+        except Exception:
+            logger.exception("Failed to initialize ClothingBoxFinder")
+            self.clothing_finder = None
 
         # News config
         self.news_api_url = os.getenv("NEWS_API_URL")  # 可設定為回傳 JSON 的 endpoint
@@ -247,12 +258,7 @@ class LineMessageHandler:
 
     def handle_text_message(self, event):
         """
-        處理文字訊息 (v8 - 使用 AI 聊天判斷)：
-        1. 檢查指令。
-        2. 非指令 -> 送 AI 分類 (AI 會判斷是否為 chat)。
-        3. 檢查 AI 結果是否為 'chat' -> 回覆提示。
-        4. 檢查 AI 結果是否為非實體物品 -> 回覆提示。
-        5. 正常顯示分類結果。
+        處理文字訊息 (v9 - 移除了 /clothes 指令)
         """
         user_id = event.source.user_id
         raw_text = event.message.text.strip()
@@ -267,18 +273,19 @@ class LineMessageHandler:
             if command_text in ['/help', '幫助', 'help']:
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
                 return
-            # ... (處理 /language, /news 的程式碼不變) ...
+            
             if command_text in ['/language', '語言', 'language']:
                 self._send_language_menu(event.reply_token)
                 return
+
             if command_text in ['/news', 'news', '最新消息', '公告']:
-                # (舊邏輯：news_text = self._get_news_text(user_lang))
-                # 新邏輯：直接回傳 texts 字典中定義好的 'news_reply'
                 self.line_bot_api.reply_message(
                     event.reply_token, 
                     TextMessage(text=texts['news_reply'])
                 )
                 return
+            
+            # ( /clothes 指令已移除)
 
             # --- 2. 如果不是指令，則執行「AI 文字分類」 ---
             classification_result = self.image_classifier.classify_text(raw_text)
@@ -288,25 +295,17 @@ class LineMessageHandler:
                 item_zh = classification_result.get('item_name_zh', '')
                 item_en = classification_result.get('item_name_en', '').lower()
 
-                # --- 3. **優先**檢查 AI 是否判定為聊天 ---
+                # --- 3. 檢查 AI 是否判定為聊天 ---
                 if category == 'chat':
-                    self.line_bot_api.reply_message(
-                        event.reply_token,
-                        TextMessage(text=texts['maybe_chat_reply']) # 使用相同的提示文案
-                    )
+                    self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['maybe_chat_reply']))
                     logger.info(f"Input text '{raw_text}' was classified as 'chat' by AI. Sent maybe_chat_reply.")
-                    # 不記錄這次 chat 分類到資料庫
-                    return # 提早結束
+                    return 
 
-                # --- 4. **然後才**檢查是否為非實體物品 ---
-                # (這個檢查仍然需要，以防 AI 判斷截圖時出錯)
+                # --- 4. 檢查是否為非實體物品 ---
                 if item_zh in ['螢幕截圖', '遊戲畫面', '繪圖'] or item_en in ['screenshot', 'game screen', 'drawing']:
-                    self.line_bot_api.reply_message(
-                        event.reply_token,
-                        TextMessage(text=texts['not_garbage_reply'])
-                    )
+                    self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['not_garbage_reply']))
                     logger.info(f"Replied with not_garbage_reply for non-physical text input: {item_zh}/{item_en}")
-                    return # 提早結束
+                    return
 
                 # --- 5. 執行正常的分類流程 ---
                 item_name_for_db = item_zh if user_lang == 'zh-TW' else item_en
@@ -508,69 +507,79 @@ class LineMessageHandler:
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
 
-        # 先回覆「正在查詢」
+        # 1. 先回覆「正在查詢」
         try:
-            # (我們將搜尋半徑改回 2000m，並在下方回覆中註明)
-            searching_text = texts['location_searching'].replace("2 公里", "2 公里") # 確保文字正確
-            self.line_bot_api.reply_message(event.reply_token, TextSendMessage(text=searching_text))
+            self.line_bot_api.reply_message(
+                event.reply_token, 
+                TextSendMessage(text=texts['location_searching'])
+            )
         except Exception:
             logger.exception("Failed to send searching reply")
 
+        # 2. 準備旗標和結果容器
+        trucks_found = False
+        boxes_found = False
+        
         try:
             user_lat = getattr(event.message, "latitude", None)
             user_lng = getattr(event.message, "longitude", None)
             address = getattr(event.message, "address", "")
 
-            nearby = []
-            # 優先使用經緯度查詢（若有）
+            # 3. 執行垃圾車查詢 (使用經緯度)
             if user_lat is not None and user_lng is not None and self.garbage_truck_api:
                 try:
-                    # --- vvv 關鍵修改處 vvv ---
-                    # 1. 將搜尋半徑改回 2000m (2km)，確保能找到東西
-                    # 2. 新增 max_results=3，限制只回傳 3 筆
-                    nearby = self.garbage_truck_api.get_schedules_by_location(
-                        user_lat, 
-                        user_lng, 
-                        radius_m=2000, 
-                        max_results=3
+                    nearby_trucks = self.garbage_truck_api.get_schedules_by_location(
+                        user_lat, user_lng, radius_m=2000, max_results=3
                     )
-                    # --- ^^^ 關鍵修改處 ^^^ ---
-                except Exception:
-                    logger.exception("Error calling get_schedules_by_location")
+                    if nearby_trucks:
+                        flex_message_trucks = self._create_trucks_flex_message(nearby_trucks, texts)
+                        self.line_bot_api.push_message(user_id, flex_message_trucks)
+                        trucks_found = True
+                except Exception as e:
+                    logger.exception(f"Error calling get_schedules_by_location: {e}")
 
-            # 若經緯度查詢沒結果，再 fallback 用 address (這裡的邏輯保持不變)
-            if not nearby and address and self.garbage_truck_api:
+            # 4. 執行舊衣回收箱查詢 (使用經緯度)
+            if user_lat is not None and user_lng is not None and self.clothing_finder:
                 try:
-                    # (地址查詢通常不精確，維持原樣)
-                    nearby = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
-                except Exception:
-                    logger.exception("Error calling get_schedules_by_address")
+                    # (我們也在 2km 內找，最多 3 個)
+                    nearby_boxes = self.clothing_finder.get_nearby_boxes(
+                        user_lat, user_lng, radius_m=2000, max_results=3
+                    )
+                    if nearby_boxes:
+                        flex_message_boxes = self._create_clothing_boxes_flex_message(nearby_boxes, texts)
+                        self.line_bot_api.push_message(user_id, flex_message_boxes)
+                        boxes_found = True
+                except Exception as e:
+                    logger.exception(f"Error calling get_nearby_boxes: {e}")
 
-            if nearby:
-                try:
-                    # (如果使用地址查詢，結果可能多於 3 筆，我們在 _create_trucks_flex_message 中會限制)
-                    flex_message = self._create_trucks_flex_message(nearby, texts)
-                    self.line_bot_api.push_message(user_id, flex_message)
-                except Exception:
-                    logger.exception("Failed to send flex message; fallback to text")
-                    brief = []
-                    # (這裡我們也手動限制只顯示 3 筆)
-                    for s in nearby[:3]: 
-                        dist = f" ({s.get('_distance_m')}m)" if s.get('_distance_m') else ""
-                        src_note = ""
-                        if s.get('_synthetic'):
-                            src_note = "（參考資料）"
-                        brief.append(f"{s.get('linename')}{dist}\n{ s.get('time','') } {src_note}")
-                    
-                    # 修正 fallback 回覆中的錯字 ("車號")
-                    reply_text = f"以下是 2 公里內最近的 {len(brief)} 個停靠點：\n\n" + "\n\n".join(brief)
-                    self.line_bot_api.push_message(user_id, TextSendMessage(text=reply_text))
-            else:
-                self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found', '抱歉，找不到附近垃圾車資訊。')))
-        except Exception:
-            logger.exception("Error handling location message")
-            self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_api_error', '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。')))
+            # 5. 處理都找不到的情況
+            if not trucks_found and not boxes_found:
+                # 如果一開始的經緯度查詢都失敗了，才嘗試用地址 fallback 垃圾車 (舊衣回收箱不支援地址)
+                if not nearby_trucks and address and self.garbage_truck_api:
+                    try:
+                        nearby_trucks_addr = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
+                        if nearby_trucks_addr:
+                            flex_message_trucks = self._create_trucks_flex_message(nearby_trucks_addr, texts)
+                            self.line_bot_api.push_message(user_id, flex_message_trucks)
+                            trucks_found = True
+                    except Exception as e:
+                        logger.exception(f"Error calling get_schedules_by_address: {e}")
 
+                # 最終檢查：如果真的什麼都沒有
+                if not trucks_found and not boxes_found:
+                    self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found')))
+                # 只有垃圾車，沒有回收箱
+                elif trucks_found and not boxes_found:
+                    self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('clothing_box_not_found')))
+                # 只有回收箱，沒有垃圾車
+                elif not trucks_found and boxes_found:
+                     self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('truck_not_found')))
+
+        except Exception as e:
+            logger.exception(f"Error handling location message: {e}")
+            self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_api_error')))
+    # --- ^^^ handle_location_message 結束 ^^^ ---
+    
     def _send_language_menu(self, reply_token):
         carousel_template = CarouselTemplate(columns=[
             CarouselColumn(thumbnail_image_url='https://github.com/1101416/recycle_bot/blob/main/language.png?raw=true', title='繁體中文', text='選擇繁體中文介面', actions=[PostbackAction(label='選擇', data='lang_zh-TW')]),
@@ -683,6 +692,49 @@ class LineMessageHandler:
         )
 
     # ... (其他函式不變) ...
+    def _create_clothing_boxes_flex_message(self, boxes: List[Dict], texts: Dict) -> FlexSendMessage:
+        """建立「舊衣回收箱」的 Flex Message 輪播卡片"""
+        bubbles = []
+        
+        for box in boxes[:10]: # (雖然只會傳入 3 筆，但保留彈性)
+            distance_text = f"約 {box.get('_distance_m')} 公尺"
+
+            bubble = BubbleContainer(
+                direction='ltr',
+                body=BoxComponent(
+                    layout='vertical',
+                    spacing='md',
+                    contents=[
+                        TextComponent(text=f"👕 {box['name']}", weight='bold', size='md', color='#1DB446', wrap=True),
+                        TextComponent(text=box.get('address', '地址未提供'), size='sm', color='#666666', margin='md', wrap=True),
+                        SeparatorComponent(margin='lg'),
+                        BoxComponent(
+                            layout='vertical',
+                            margin='lg',
+                            spacing='sm',
+                            contents=[
+                                BoxComponent(
+                                    layout='baseline', spacing='sm',
+                                    contents=[
+                                        TextComponent(text='距離', color='#aaaaaa', size='sm', flex=2),
+                                        TextComponent(text=distance_text, wrap=True, color='#666666', size='sm', flex=5, weight='bold')
+                                    ]
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+            bubbles.append(bubble)
+
+        carousel_contents = {"type": "carousel", "contents": [bubble.as_json_dict() for bubble in bubbles]}
+        
+        alt_text = texts.get('clothing_box_title', '附近舊衣回收箱') # 從 TEXTS 字典讀取標題
+
+        return FlexSendMessage(
+            alt_text=alt_text,
+            contents=carousel_contents
+        )
 
     def _create_result_flex_message(self, classification_result, waste_info, texts, user_lang):
         """
@@ -739,6 +791,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
