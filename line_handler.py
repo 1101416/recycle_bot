@@ -519,6 +519,7 @@ class LineMessageHandler:
         # 2. 準備旗標和結果容器
         trucks_found = False
         boxes_found = False
+        nearby_trucks = [] # 確保變數被初始化
         
         try:
             user_lat = getattr(event.message, "latitude", None)
@@ -541,7 +542,6 @@ class LineMessageHandler:
             # 4. 執行舊衣回收箱查詢 (使用經緯度)
             if user_lat is not None and user_lng is not None and self.clothing_finder:
                 try:
-                    # (我們也在 2km 內找，最多 3 個)
                     nearby_boxes = self.clothing_finder.get_nearby_boxes(
                         user_lat, user_lng, radius_m=2000, max_results=3
                     )
@@ -552,28 +552,40 @@ class LineMessageHandler:
                 except Exception as e:
                     logger.exception(f"Error calling get_nearby_boxes: {e}")
 
-            # 5. 處理都找不到的情況
+            # 5. 處理都找不到的情況 (Fallback to address)
+            # (僅在 經緯度 兩種查詢都失敗時，才嘗試用地址)
             if not trucks_found and not boxes_found:
-                # 如果一開始的經緯度查詢都失敗了，才嘗試用地址 fallback 垃圾車 (舊衣回收箱不支援地址)
-                if not nearby_trucks and address and self.garbage_truck_api:
+                if address and self.garbage_truck_api: # (只 fallback 垃圾車)
                     try:
+                        logger.info("Fallback to address search for garbage trucks...")
                         nearby_trucks_addr = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
                         if nearby_trucks_addr:
                             flex_message_trucks = self._create_trucks_flex_message(nearby_trucks_addr, texts)
                             self.line_bot_api.push_message(user_id, flex_message_trucks)
-                            trucks_found = True
+                            trucks_found = True # 更新旗標
                     except Exception as e:
                         logger.exception(f"Error calling get_schedules_by_address: {e}")
 
-                # 最終檢查：如果真的什麼都沒有
-                if not trucks_found and not boxes_found:
-                    self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found')))
-                # 只有垃圾車，沒有回收箱
-                elif trucks_found and not boxes_found:
-                    self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('clothing_box_not_found')))
-                # 只有回收箱，沒有垃圾車
-                elif not trucks_found and boxes_found:
-                     self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('truck_not_found')))
+            # --- vvv 修正後的邏輯檢查 vvv ---
+            # 6. 最終檢查並回傳「未找到」的訊息
+            # (這個區塊現在是獨立的，不再被錯誤地巢狀)
+            
+            # 情況 A：兩者都真的找不到 (包括地址 fallback 後)
+            if not trucks_found and not boxes_found:
+                self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('location_not_found')))
+            
+            # 情況 B：只找到垃圾車，沒找到回收箱
+            elif trucks_found and not boxes_found:
+                self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('clothing_box_not_found')))
+
+            # 情況 C：只找到回收箱，沒找到垃圾車 (如 Log 所示)
+            elif not trucks_found and boxes_found:
+                 self.line_bot_api.push_message(user_id, TextSendMessage(text=texts.get('truck_not_found')))
+            
+            # 情況 D：兩者都找到了 (不需要額外訊息)
+            elif trucks_found and boxes_found:
+                pass 
+            # --- ^^^ 修正後的邏輯檢查 ^^^ ---
 
         except Exception as e:
             logger.exception(f"Error handling location message: {e}")
@@ -606,101 +618,88 @@ class LineMessageHandler:
             logger.exception("Error sending user stats")
 
     def _create_trucks_flex_message(self, schedules: List[Dict], texts: Dict) -> FlexSendMessage:
-        """建立「清運時間表」的 Flex Message 輪播卡片 (v4.2 - 修正排版)"""
+        """建立「清運時間表」的 Flex Message 輪播卡片 (v5.1 - 加上 Header)"""
         bubbles = []
-        
+        header_component = BoxComponent(
+            layout='vertical',
+            padding_bottom='none',
+            contents=[
+                TextComponent(
+                    text=texts.get('location_title', '附近垃圾車資訊'),
+                    weight='bold', size='xl', color='#1DB446', align='start'
+                )
+            ]
+        )
         for schedule in schedules[:10]: 
             time_text = schedule.get('time', '')
             if schedule.get('_synthetic'):
                 time_text = f"{time_text}\n（系統提示：此資料為快取/參考，非即時）"
             elif schedule.get('_from_cache'):
                 time_text = f"{time_text}\n（系統提示：使用本地快取資料）"
-
-            # --- 組合「今日收運」狀態 (邏輯不變) ---
             status = schedule.get('today_status', {})
             status_items = []
-            if status.get('garbage'):
-                status_items.append(TextComponent(text='一般垃圾', size='sm', color='#1DB446', weight='bold', flex=0)) # flex=0 避免被拉伸
-            if status.get('recycling'):
-                status_items.append(TextComponent(text='資源回收', size='sm', color='#1DB446', weight='bold', flex=0))
-            if status.get('foodscraps'):
-                status_items.append(TextComponent(text='廚餘', size='sm', color='#1DB446', weight='bold', flex=0))
-            if not status_items:
-                status_items.append(
-                    TextComponent(text='今日無收運', size='sm', color='#AAAAAA', flex=0)
-                )
-            
-            # --- vvv 修正排版 vvv ---
-            
-            # 建立「今日收運」的 Box
+            if status.get('garbage'): status_items.append(TextComponent(text='一般垃圾', size='sm', color='#1DB446', weight='bold', flex=0))
+            if status.get('recycling'): status_items.append(TextComponent(text='資源回收', size='sm', color='#1DB446', weight='bold', flex=0))
+            if status.get('foodscraps'): status_items.append(TextComponent(text='廚餘', size='sm', color='#1DB446', weight='bold', flex=0))
+            if not status_items: status_items.append(TextComponent(text='今日無收運', size='sm', color='#AAAAAA', flex=0))
             status_box = BoxComponent(
-                layout='horizontal', # <--- 修正：從 baseline 改回 horizontal
-                spacing='sm',
+                layout='horizontal', spacing='sm',
                 contents=[
-                    TextComponent(text='今日收運', color='#aaaaaa', size='sm', flex=3, gravity='top'), # <--- gravity='top' 確保標籤置頂
-                    BoxComponent(
-                        layout='horizontal',
-                        spacing='md',
-                        flex=5,
-                        wrap=True, # 允許項目換行
-                        contents=status_items
-                    )
+                    TextComponent(text='今日收運', color='#aaaaaa', size='sm', flex=3, gravity='top'),
+                    BoxComponent(layout='horizontal', spacing='md', flex=5, wrap=True, contents=status_items)
                 ]
             )
-            
-            # 建立「預計時間」的 Box
             time_box = BoxComponent(
-                layout='horizontal', # <--- 修正：從 baseline 改回 horizontal
-                spacing='sm',
+                layout='horizontal', spacing='sm',
                 contents=[
                     TextComponent(text='預計時間', color='#aaaaaa', size='sm', flex=3, gravity='top'),
                     TextComponent(text=time_text, wrap=True, color='#666666', size='sm', flex=5)
                 ]
             )
-            # --- ^^^ 修正排版 ^^^ ---
-
             bubble = BubbleContainer(
                 direction='ltr',
+                header=header_component,
                 body=BoxComponent(
-                    layout='vertical',
-                    spacing='md',
+                    layout='vertical', spacing='md',
                     contents=[
                         TextComponent(text=f"📍 {schedule['location']}", weight='bold', size='md', color='#1DB446', wrap=True),
                         TextComponent(text=f"🚛 {schedule.get('city','')} - {schedule.get('linename', '未知路線')}", size='xs', color='#AAAAAA', margin='md'),
                         SeparatorComponent(margin='lg'),
-                        BoxComponent(
-                            layout='vertical',
-                            margin='lg',
-                            spacing='sm',
-                            contents=[
-                                status_box,
-                                time_box
-                            ]
-                        )
+                        BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=[status_box, time_box])
                     ]
                 )
             )
             bubbles.append(bubble)
-
         carousel_contents = {"type": "carousel", "contents": [bubble.as_json_dict() for bubble in bubbles]}
-        
         alt_text = texts.get('location_title', '垃圾車清運時間表')
-
-        return FlexSendMessage(
-            alt_text=alt_text,
-            contents=carousel_contents
-        )
-
+        return FlexSendMessage(alt_text=alt_text, contents=carousel_contents)
+        
     # ... (其他函式不變) ...
     def _create_clothing_boxes_flex_message(self, boxes: List[Dict], texts: Dict) -> FlexSendMessage:
-        """建立「舊衣回收箱」的 Flex Message 輪播卡片"""
+        """建立「舊衣回收箱」的 Flex Message 輪播卡片 (v5.2 - 修正排版)"""
         bubbles = []
         
-        for box in boxes[:10]: # (雖然只會傳入 3 筆，但保留彈性)
+        # 建立共用的 Header
+        header_component = BoxComponent(
+            layout='vertical',
+            padding_bottom='none',
+            contents=[
+                TextComponent(
+                    text=texts.get('clothing_box_title', '附近舊衣回收箱'), # 讀取標題
+                    weight='bold', 
+                    size='xl', 
+                    color='#1DB446', # 保持風格一致
+                    align='start'
+                )
+            ]
+        )
+
+        for box in boxes[:10]:
             distance_text = f"約 {box.get('_distance_m')} 公尺"
 
             bubble = BubbleContainer(
                 direction='ltr',
+                header=header_component, # <--- 加入 Header
                 body=BoxComponent(
                     layout='vertical',
                     spacing='md',
@@ -714,11 +713,14 @@ class LineMessageHandler:
                             spacing='sm',
                             contents=[
                                 BoxComponent(
-                                    layout='baseline', spacing='sm',
+                                    # --- vvv 修正排版 (同垃圾車卡片) vvv ---
+                                    layout='horizontal',
+                                    spacing='sm',
                                     contents=[
-                                        TextComponent(text='距離', color='#aaaaaa', size='sm', flex=2),
-                                        TextComponent(text=distance_text, wrap=True, color='#666666', size='sm', flex=5, weight='bold')
+                                        TextComponent(text='距離', color='#aaaaaa', size='sm', flex=2, gravity='top'),
+                                        TextComponent(text=distance_text, wrap=True, color='#666666', size='sm', flex=5)
                                     ]
+                                    # --- ^^^ 修正排版 ^^^ ---
                                 )
                             ]
                         )
@@ -735,7 +737,8 @@ class LineMessageHandler:
             alt_text=alt_text,
             contents=carousel_contents
         )
-
+    # --- ^^^ _create_clothing_boxes_flex_message 結束 ^^^ ---
+    
     def _create_result_flex_message(self, classification_result, waste_info, texts, user_lang):
         """
         建立分類結果的 Flex Message — (修正 2.0 版本)
@@ -791,6 +794,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
