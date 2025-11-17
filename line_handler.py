@@ -597,11 +597,9 @@ class LineMessageHandler:
             logger.exception("Error sending user stats")
 
     def _create_trucks_flex_message(self, schedules: List[Dict], texts: Dict) -> FlexSendMessage:
-        """建立「清運時間表」的 Flex Message 輪播卡片 (v4.1)"""
+        """建立「清運時間表」的 Flex Message 輪播卡片 (v4.2 - 修正排版)"""
         bubbles = []
         
-        # (因為 get_schedules_by_location 已經限制 3 筆，
-        # 這裡的 [:10] 主要是為了 fallback 的 address 查詢)
         for schedule in schedules[:10]: 
             time_text = schedule.get('time', '')
             if schedule.get('_synthetic'):
@@ -609,49 +607,48 @@ class LineMessageHandler:
             elif schedule.get('_from_cache'):
                 time_text = f"{time_text}\n（系統提示：使用本地快取資料）"
 
-            # --- vvv 新增：組合「今日收運」狀態 vvv ---
+            # --- 組合「今日收運」狀態 (邏輯不變) ---
             status = schedule.get('today_status', {})
             status_items = []
-            
-            # 建立收運項目的 TextComponent
             if status.get('garbage'):
-                status_items.append(TextComponent(text='一般垃圾', size='sm', color='#1DB446', weight='bold'))
+                status_items.append(TextComponent(text='一般垃圾', size='sm', color='#1DB446', weight='bold', flex=0)) # flex=0 避免被拉伸
             if status.get('recycling'):
-                status_items.append(TextComponent(text='資源回收', size='sm', color='#1DB446', weight='bold'))
+                status_items.append(TextComponent(text='資源回收', size='sm', color='#1DB446', weight='bold', flex=0))
             if status.get('foodscraps'):
-                status_items.append(TextComponent(text='廚餘', size='sm', color='#1DB446', weight='bold'))
-            
-            # 如果今天都沒有
+                status_items.append(TextComponent(text='廚餘', size='sm', color='#1DB446', weight='bold', flex=0))
             if not status_items:
                 status_items.append(
-                    TextComponent(text='今日無收運', size='sm', color='#AAAAAA')
+                    TextComponent(text='今日無收運', size='sm', color='#AAAAAA', flex=0)
                 )
+            
+            # --- vvv 修正排版 vvv ---
             
             # 建立「今日收運」的 Box
             status_box = BoxComponent(
-                layout='baseline', 
+                layout='horizontal', # <--- 修正：從 baseline 改回 horizontal
                 spacing='sm',
                 contents=[
-                    TextComponent(text='今日收運', color='#aaaaaa', size='sm', flex=3),
+                    TextComponent(text='今日收運', color='#aaaaaa', size='sm', flex=3, gravity='top'), # <--- gravity='top' 確保標籤置頂
                     BoxComponent(
                         layout='horizontal',
                         spacing='md',
                         flex=5,
-                        wrap=True, # 允許多個項目換行
+                        wrap=True, # 允許項目換行
                         contents=status_items
                     )
                 ]
             )
-            # --- ^^^ 新增結束 ^^^ ---
-
+            
             # 建立「預計時間」的 Box
             time_box = BoxComponent(
-                layout='baseline', spacing='sm',
+                layout='horizontal', # <--- 修正：從 baseline 改回 horizontal
+                spacing='sm',
                 contents=[
-                    TextComponent(text='預計時間', color='#aaaaaa', size='sm', flex=3),
-                    TextComponent(text=time_text, wrap=True, color='#666666', size='sm', flex=5, weight='bold')
+                    TextComponent(text='預計時間', color='#aaaaaa', size='sm', flex=3, gravity='top'),
+                    TextComponent(text=time_text, wrap=True, color='#666666', size='sm', flex=5)
                 ]
             )
+            # --- ^^^ 修正排版 ^^^ ---
 
             bubble = BubbleContainer(
                 direction='ltr',
@@ -666,12 +663,10 @@ class LineMessageHandler:
                             layout='vertical',
                             margin='lg',
                             spacing='sm',
-                            # --- vvv 修改處：插入 status_box vvv ---
                             contents=[
-                                status_box, # 加入今日狀態
-                                time_box    # 原有的時間
+                                status_box,
+                                time_box
                             ]
-                            # --- ^^^ 修改處 ^^^ ---
                         )
                     ]
                 )
@@ -686,7 +681,6 @@ class LineMessageHandler:
             alt_text=alt_text,
             contents=carousel_contents
         )
-    # --- ^^^ _create_trucks_flex_message 結束 ^^^ ---
 
     # ... (其他函式不變) ...
 
@@ -745,6 +739,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
