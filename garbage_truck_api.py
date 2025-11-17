@@ -1,5 +1,5 @@
 # 檔案: garbage_truck_api.py
-# (此版本 v4.0 已修正為「排程器更新」邏輯 + 修正「未知車號」Bug)
+# (此版本 v4.1 已加入「今日收運狀態」邏輯)
 
 import os
 import json
@@ -15,20 +15,14 @@ from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_NTPC_API_JSON = os.getenv(
-    "NTPC_GARBAGE_API_URL",
-    "https://data.ntpc.gov.tw/api/datasets/edc3ad26-8ae7-4916-a00b-bc6048d19bf8/json"
-)
-
-# --- vvv 修改處：使用 Render 永久硬碟路徑 vvv ---
+# ... (DEFAULT_NTPC_API_JSON, CACHE_PATH, TIMEOUT_SEC, ... CACHE_MAX_AGE_SECONDS 保持不變) ...
+DEFAULT_NTPC_API_JSON = os.getenv("NTPC_GARBAGE_API_URL","https://data.ntpc.gov.tw/api/datasets/edc3ad26-8ae7-4916-a00b-bc6048d19bf8/json")
 CACHE_PATH = os.getenv("NTPC_CACHE_PATH", "/data/ntpc_schedule_cache.json")
-# --- ^^^ 修改處 ^^^ ---
-
 TIMEOUT_SEC = int(os.getenv("NTPC_TIMEOUT_SEC", "15"))
 RETRY_TOTAL = int(os.getenv("NTPC_RETRY_TOTAL", "3"))
 RETRY_BACKOFF = float(os.getenv("NTPC_RETRY_BACKOFF", "0.8"))
 USE_SYNTHETIC_FALLBACK = os.getenv("NTPC_USE_SYNTH_FALLBACK", "true").lower() not in ("0","false","no")
-CACHE_MAX_AGE_SECONDS = 87000 # 24 小時 + 10 分鐘緩衝
+CACHE_MAX_AGE_SECONDS = 86400 
 
 # ... ( _make_session_with_retries, haversine_distance_m, _save_cache, _load_cache 保持不變 ) ...
 def _make_session_with_retries(total=RETRY_TOTAL, backoff=RETRY_BACKOFF) -> requests.Session:
@@ -187,39 +181,28 @@ class NewTaipeiTruckAPI:
         logger.info("Fetched a total of %d items from NTPC API.", len(all_items))
         return all_items
 
-    # --- vvv 新增函式：專門給排程器呼叫 vvv ---
     def force_update_cache(self) -> bool:
-        """
-        (v4.0) 由排程器呼叫，強制下載 API 資料並寫入快取。
-        """
+        """ (v4.0) 由排程器呼叫，強制下載 API 資料並寫入快取。 """
         logger.info("Scheduler triggered: Forcing cache update...")
         items = self._fetch_api()
-        
         if items:
             _save_cache(items, CACHE_PATH)
-            self.all_data_cache = items # 更新記憶體快取
+            self.all_data_cache = items 
             logger.info("Cache update successful. %d items saved.", len(items))
             return True
         else:
             logger.error("Cache update failed: _fetch_api() returned None.")
             return False
-    # --- ^^^ 新增函式 ^^^ ---
 
     def _get_all_data(self) -> Optional[List[Dict]]:
-        """
-        (v4.0) 檢查快取，如果過期或不存在，才呼叫 _fetch_api()
-        """
-        # 1. 檢查記憶體快取
+        """ (v4.0) 檢查快取，如果過期或不存在，才呼叫 _fetch_api() """
         if self.all_data_cache:
              logger.info("Loading NTPC data from memory cache.")
              return self.all_data_cache
-
-        # 2. 檢查檔案快取
         items = None
         if os.path.exists(CACHE_PATH):
             try:
                 file_mod_time = os.path.getmtime(CACHE_PATH)
-                # 檢查快取是否在 24 小時內
                 if (datetime.now().timestamp() - file_mod_time) < CACHE_MAX_AGE_SECONDS:
                     logger.info(f"Cache file is fresh (under {CACHE_MAX_AGE_SECONDS}s old). Loading from cache file.")
                     items = _load_cache(CACHE_PATH)
@@ -227,8 +210,6 @@ class NewTaipeiTruckAPI:
                     logger.info(f"Cache file is stale (over {CACHE_MAX_AGE_SECONDS}s old).")
             except Exception as e:
                 logger.warning(f"Could not read cache file mtime or load cache: {e}.")
-        
-        # 3. 如果快取不存在或已過期，觸發下載 (這是使用者的後備方案)
         if items is None:
             logger.warning("No valid cache found or cache is stale. Fetching from API (this may take ~2 minutes)...")
             items = self._fetch_api()
@@ -236,22 +217,68 @@ class NewTaipeiTruckAPI:
                 _save_cache(items, CACHE_PATH)
             else:
                 logger.error("Failed to fetch new data from API and no valid cache available.")
-                return None # 確定失敗
-        
-        # 4. 將資料存入記憶體快取並回傳
+                return None
         if items:
             self.all_data_cache = items
         return items
 
+    # --- vvv 新增輔助函式 vvv ---
+    def _parse_truck_item(self, it: Dict, distance: Optional[int] = None) -> Dict:
+        """
+        (v4.1) 從原始 item 中提取所需欄位，並解析「今日收運狀態」。
+        """
+        
+        # 1. 取得今日星期幾 (0=Mon, 6=Sun)
+        today_weekday = datetime.now().weekday()
+        day_map = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        today_key = day_map[today_weekday] # e.g., 'monday'
+
+        # 2. 建立要檢查的欄位名稱
+        garbage_field = f"garbage{today_key}"
+        recycling_field = f"recycling{today_key}"
+        foodscraps_field = f"foodscraps{today_key}"
+
+        # 3. 檢查 'Y'/'N' 狀態
+        collects_garbage = _get_field_case_insensitive(it, [garbage_field], 'N') == 'Y'
+        collects_recycling = _get_field_case_insensitive(it, [recycling_field], 'N') == 'Y'
+        collects_foodscraps = _get_field_case_insensitive(it, [foodscraps_field], 'N') == 'Y'
+        
+        today_status = {
+            'garbage': collects_garbage,
+            'recycling': collects_recycling,
+            'foodscraps': collects_foodscraps
+        }
+
+        # 4. 提取其他顯示欄位
+        linename_field = _get_field_case_insensitive(it, ['linename', '路線名稱']) or "未知路線"
+        caption = _get_field_case_insensitive(it, ['name', '清運點名稱']) or _get_field_case_insensitive(it, ['路線名稱'], default='未知地點')
+        time_field = _get_field_case_insensitive(it, ['time', '表定時間']) or ""
+        city_field = _get_field_case_insensitive(it, ['city', '行政區']) or "新北市"
+
+        # 5. 組合回傳結果
+        res = {
+            "linename": str(linename_field),
+            "location": str(caption),
+            "time": str(time_field),
+            "city": str(city_field),
+            "today_status": today_status # <--- 新增的欄位
+        }
+        if distance is not None:
+            res["_distance_m"] = int(distance)
+            
+        return res
+    # --- ^^^ 新增輔Zhu函式 ^^^ ---
+
+
     def get_schedules_by_location(self, lat: float, lng: float, radius_m: int = 2000, max_results: int = 8) -> List[Dict]:
-        """ (v4.0) 以經緯度做篩選 """
+        """ (v4.1) 以經緯度做篩選 """
         
         items = self._get_all_data()
         
         if not items:
             logger.warning("No NTPC data available (fetch failed and no cache).")
             if USE_SYNTHETIC_FALLBACK:
-                return [{"car": "未知車號", "location": "您附近（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
+                return [{"linename": "未知路線", "location": "您附近（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True, "today_status": {}}]
             return []
         
         proximity_results = []
@@ -263,20 +290,10 @@ class NewTaipeiTruckAPI:
                 try:
                     d = haversine_distance_m(lat, lng, latlon[0], latlon[1])
                     if d <= radius_m:
-                        # --- vvv 修改處：修正「未知車號」 vvv ---
-                        linename_field = _get_field_case_insensitive(it, ['linename', '路線名稱']) or "未知路線"
-                        # --- ^^^ 修改處 ^^^ ---
-                        caption = _get_field_case_insensitive(it, ['路線名稱','caption','Caption','location','name','名稱']) or _get_field_case_insensitive(it, ['地址','address','Address'], default='未知地點')
-                        time_field = _get_field_case_insensitive(it, ['收運時間','time','Time','收運時段','service_time','timetable','清運時間']) or ""
-                        
-                        res = {
-                            "linename": str(linename_field), # <--- 修改處
-                            "location": str(caption),
-                            "time": str(time_field),
-                            "city": "新北市",
-                            "_distance_m": int(d)
-                        }
+                        # --- vvv 修改處：呼叫輔助函式 vvv ---
+                        res = self._parse_truck_item(it, distance=d)
                         proximity_results.append(res)
+                        # --- ^^^ 修改處 ^^^ ---
                 except Exception:
                     logger.exception("Distance calc failed for item: %s", it)
                     continue
@@ -290,7 +307,7 @@ class NewTaipeiTruckAPI:
         return []
 
     def get_schedules_by_address(self, address: str, radius_m: int = 2000) -> List[Dict]:
-        """ (v4.0) 保留 address-based 查詢 """
+        """ (v4.1) 保留 address-based 查詢 """
         
         if not address:
             return []
@@ -318,7 +335,7 @@ class NewTaipeiTruckAPI:
         if not items:
             logger.warning("No NTPC data available (fetch failed and no cache).")
             if USE_SYNTHETIC_FALLBACK:
-                return [{"car": "未知車號", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
+                return [{"linename": "未知路線", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True, "today_status": {}}]
             return []
         
         results = []
@@ -326,25 +343,21 @@ class NewTaipeiTruckAPI:
             if not isinstance(it, dict):
                 continue
             try:
-                area = _get_field_case_insensitive(it, ['行政區','AREA','area','district','區域'])
-                caption = _get_field_case_insensitive(it, ['路線名稱','caption','Caption','location','Location','name','名稱'])
-                time_field = _get_field_case_insensitive(it, ['收運時間','time','Time','收運時段','service_time','timetable','清運時間'])
-                # --- vvv 修改處：修正「未知車號」 vvv ---
-                linename_field = _get_field_case_insensitive(it, ['linename', '路線名稱']) or "未知路線"
-                # --- ^^^ 修改處 ^^^ ---
+                area = _get_field_case_insensitive(it, ['city', '行政區'])
+                caption = _get_field_case_insensitive(it, ['name', '清運點名稱']) or _get_field_case_insensitive(it, ['linename', '路線名稱'])
+                
                 area_ok = True if not district else (area and district in str(area))
                 road_ok = True if not road else (caption and road in str(caption))
+                
                 if area_ok and road_ok:
-                    results.append({
-                        "linename": str(linename_field), # <--- 修改處
-                        "location": str(caption or _get_field_case_insensitive(it, ['地址','address'], default='未知地點')),
-                        "time": str(time_field or ""),
-                        "city": "新北市",
-                    })
+                    # --- vvv 修改處：呼叫輔助函式 vvv ---
+                    res = self._parse_truck_item(it)
+                    results.append(res)
+                    # --- ^^^ 修改處 ^^^ ---
             except Exception:
                 logger.exception("Failed parse item: %s", it)
                 continue
 
         if not results and USE_SYNTHETIC_FALLBACK:
-            return [{"car": "未知車號", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True}]
+            return [{"linename": "未知路線", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True, "today_status": {}}]
         return results
