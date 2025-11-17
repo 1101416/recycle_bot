@@ -75,6 +75,8 @@ TEXTS = {
         'location_searching': '正在查詢您附近 100 公尺內的新北市垃圾車，請稍候...',
         'location_not_found': '抱歉，目前在您附近 100 公尺內找不到即時垃圾車資訊。',
         'location_api_error': '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。',
+        'news_reply': """📰 點擊查看最新的環保新聞：
+https://www.moenv.gov.tw/press/press-releases/2626.html""",
         'news_not_configured': '抱歉，系統尚未設定新聞來源（NEWS_API_URL）。請聯絡管理員。',
         'news_no_items': '抱歉，目前沒有可顯示的新聞。'
     },
@@ -133,6 +135,8 @@ Or tap the menu below or type /help for more functions!""",
         'location_searching': 'Searching for garbage trucks within 100 m of your location, please wait...',
         'location_not_found': 'Sorry, no real-time garbage truck information found within 100 m of your location.',
         'location_api_error': 'Sorry, an error occurred while fetching garbage truck information. Please try again later.',
+        'news_reply': """📰 Click here for the latest environmental news:
+https://www.moenv.gov.tw/press/press-releases/2626.html""",
         'news_not_configured': 'Sorry, news source (NEWS_API_URL) is not configured. Contact admin.',
         'news_no_items': 'Sorry, no news items available at the moment.'
     }
@@ -268,8 +272,12 @@ class LineMessageHandler:
                 self._send_language_menu(event.reply_token)
                 return
             if command_text in ['/news', 'news', '最新消息', '公告']:
-                news_text = self._get_news_text(user_lang)
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=news_text))
+                # (舊邏輯：news_text = self._get_news_text(user_lang))
+                # 新邏輯：直接回傳 texts 字典中定義好的 'news_reply'
+                self.line_bot_api.reply_message(
+                    event.reply_token, 
+                    TextMessage(text=texts['news_reply'])
+                )
                 return
 
             # --- 2. 如果不是指令，則執行「AI 文字分類」 ---
@@ -698,6 +706,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
