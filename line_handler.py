@@ -70,13 +70,13 @@ TEXTS = {
 點選「功能說明」了解更多使用方式！
 🌏 想用其他語言，請點「語言選擇」👇""",
         
-        'location_title': '📍 附近垃圾車資訊 (新北市)',
-        'location_searching': '正在查詢您附近 2 公里內最近的垃圾車與舊衣回收箱，請稍候...',
-        'location_not_found': '抱歉，目前在您附近 2 公里內找不到垃圾車或舊衣回收箱資訊。',
+        'location_title': '附近垃圾車資訊 (新北市)',
+        'location_searching': '正在查詢您附近 3 公里內最近的垃圾車與舊衣回收箱，請稍候...',
+        'location_not_found': '抱歉，目前在您附近 3 公里內找不到垃圾車或舊衣回收箱資訊。',
         'location_api_error': '抱歉，查詢垃圾車資訊時發生錯誤，請稍後再試。',
-        'clothing_box_title': '📍 附近舊衣回收箱', 
-        'clothing_box_not_found': '您附近 2 公里內未找到舊衣回收箱。',
-        'truck_not_found': '您附近 2 公里內未找到垃圾車資訊。', 
+        'clothing_box_title': '附近舊衣回收箱', 
+        'clothing_box_not_found': '您附近 3 公里內未找到舊衣回收箱。',
+        'truck_not_found': '您附近 3 公里內未找到垃圾車資訊。', 
         'news_reply': """📰 點擊查看最新的環保新聞：
 https://www.moenv.gov.tw/press/press-releases/2626.html""",
         'news_not_configured': '抱歉，系統尚未設定新聞來源（NEWS_API_URL）。請聯絡管理員。',
@@ -132,12 +132,12 @@ If you want to classify waste, please:
 Or tap the menu below or type /help for more functions!""",
         'error_unrecognized': 'Sorry, I couldn’t recognize the type of waste in this image.\nPlease make sure :\n• The image is clear\n• The waste item is the main focus\n• The lighting is sufficient\n\nTry taking a photo that shows the product label or type name instead.',
         'default_reply': 'Please upload a photo or type text for classification, or type /help to see all commands!',
-        'location_title': '📍 Nearby Garbage Trucks (New Taipei City)',
-        'location_searching': 'Searching for the nearest garbage trucks and clothing boxes within 2 km, please wait...',
-        'location_not_found': 'Sorry, no garbage trucks or clothing boxes found within 2 km.',
-        'clothing_box_title': '📍 Nearby Clothing Boxes', 
-        'clothing_box_not_found': 'No clothing boxes found within 2 km.', 
-        'truck_not_found': 'No garbage truck info found within 2 km.', 
+        'location_title': 'Nearby Garbage Trucks (New Taipei City)',
+        'location_searching': 'Searching for the nearest garbage trucks and clothing boxes within 3 km, please wait...',
+        'location_not_found': 'Sorry, no garbage trucks or clothing boxes found within 3 km.',
+        'clothing_box_title': 'Nearby Clothing Boxes', 
+        'clothing_box_not_found': 'No clothing boxes found within 3 km.', 
+        'truck_not_found': 'No garbage truck info found within 3 km.', 
         'location_api_error': 'Sorry, an error occurred while fetching garbage truck information. Please try again later.',
         'news_reply': """📰 Click here for the latest environmental news:
 https://www.moenv.gov.tw/press/press-releases/2626.html""",
@@ -530,7 +530,7 @@ class LineMessageHandler:
             if user_lat is not None and user_lng is not None and self.garbage_truck_api:
                 try:
                     nearby_trucks = self.garbage_truck_api.get_schedules_by_location(
-                        user_lat, user_lng, radius_m=2000, max_results=3
+                        user_lat, user_lng, radius_m=3000, max_results=3
                     )
                     if nearby_trucks:
                         flex_message_trucks = self._create_trucks_flex_message(nearby_trucks, texts)
@@ -543,7 +543,7 @@ class LineMessageHandler:
             if user_lat is not None and user_lng is not None and self.clothing_finder:
                 try:
                     nearby_boxes = self.clothing_finder.get_nearby_boxes(
-                        user_lat, user_lng, radius_m=2000, max_results=3
+                        user_lat, user_lng, radius_m=3000, max_results=3
                     )
                     if nearby_boxes:
                         flex_message_boxes = self._create_clothing_boxes_flex_message(nearby_boxes, texts)
@@ -558,7 +558,7 @@ class LineMessageHandler:
                 if address and self.garbage_truck_api: # (只 fallback 垃圾車)
                     try:
                         logger.info("Fallback to address search for garbage trucks...")
-                        nearby_trucks_addr = self.garbage_truck_api.get_schedules_by_address(address, radius_m=2000)
+                        nearby_trucks_addr = self.garbage_truck_api.get_schedules_by_address(address, radius_m=3000)
                         if nearby_trucks_addr:
                             flex_message_trucks = self._create_trucks_flex_message(nearby_trucks_addr, texts)
                             self.line_bot_api.push_message(user_id, flex_message_trucks)
@@ -704,7 +704,7 @@ class LineMessageHandler:
                     layout='vertical',
                     spacing='md',
                     contents=[
-                        TextComponent(text=f"👕 {box['name']}", weight='bold', size='md', color='#1DB446', wrap=True),
+                        TextComponent(text=f"👕站名: {box['name']}", weight='bold', size='md', color='#1DB446', wrap=True),
                         TextComponent(text=box.get('address', '地址未提供'), size='sm', color='#666666', margin='md', wrap=True),
                         SeparatorComponent(margin='lg'),
                         BoxComponent(
@@ -794,6 +794,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
