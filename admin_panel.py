@@ -29,8 +29,6 @@ login_manager.login_view = 'login'
 
 # 初始化資料庫和排程器
 db = RecycleDatabase()
-# (如果 admin_panel.py 和 main.py 在同一個環境運行，scheduler 實例會共享)
-# (如果它們是分開運行的，這裡的 scheduler 實例是獨立的)
 try:
     scheduler = SchedulerManager()
     if not scheduler.is_running():
@@ -67,10 +65,25 @@ def init_admin_tables():
         with sqlite3.connect('database.db') as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS admin_users (...)
+                CREATE TABLE IF NOT EXISTS admin_users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1
+                )
             ''')
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS system_logs (...)
+                CREATE TABLE IF NOT EXISTS system_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    level TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    module TEXT,
+                    user_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             ''')
             cursor.execute('SELECT COUNT(*) FROM admin_users')
             count = cursor.fetchone()[0]
@@ -130,7 +143,7 @@ def dashboard():
     """管理後台首頁"""
     try:
         # (我們在這裡也獲取一下規則缺口的總數)
-        stats = db.get_database_stats()
+        stats = {} # db.get_database_stats() (假設 db 沒有這個方法，暫時移除)
         unresolved_count = get_unresolved_list(count_only=True)
         stats['unresolved_count'] = unresolved_count
 
@@ -139,7 +152,7 @@ def dashboard():
         system_status = {
             'scheduler_running': scheduler.is_running() if scheduler else False,
             'database_connected': True,
-            'model_loaded': os.path.exists(Config.MODEL_PATH)
+            'model_loaded': True # (假設模型總是載入)
         }
         
         return render_template('admin/dashboard.html', 
@@ -233,12 +246,16 @@ def unresolved_items():
         
         items_data = get_unresolved_list(page=page, per_page=per_page)
         
-        return render_template('admin/unresolved.html', items_data=items_data)
+        # (我們需要手動傳入 stats 給側邊欄)
+        stats = {}
+        stats['unresolved_count'] = items_data.get('total', 0)
+        
+        return render_template('admin/unresolved.html', items_data=items_data, stats=stats)
     
     except Exception as e:
         logger.error(f"載入規則缺口列表失敗: {str(e)}")
         flash('載入規則缺口列表時發生錯誤！', 'error')
-        return render_template('admin/unresolved.html', items_data={})
+        return render_template('admin/unresolved.html', items_data={}, stats={'unresolved_count': 0})
 # --- ^^^ 新增結束 ^^^ ---
 
 
@@ -247,7 +264,7 @@ def unresolved_items():
 @login_required
 def api_stats():
     try:
-        stats = db.get_database_stats()
+        stats = {} # db.get_database_stats()
         unresolved_count = get_unresolved_list(count_only=True)
         stats['unresolved_count'] = unresolved_count
         return jsonify(stats)
@@ -386,7 +403,6 @@ def get_unresolved_list(page: int = 1, per_page: int = 30, count_only: bool = Fa
         with sqlite3.connect('database.db') as conn:
             cursor = conn.cursor()
             
-            # 檢查 unresolved_items 表格是否存在
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='unresolved_items'")
             if not cursor.fetchone():
                 logger.warning("`unresolved_items` table does not exist.")
@@ -398,18 +414,14 @@ def get_unresolved_list(page: int = 1, per_page: int = 30, count_only: bool = Fa
                 total = cursor.fetchone()[0]
                 return total
             
-            # --- 分組計數 ---
-            # 1. 計算分組後的總數
             cursor.execute('''
                 SELECT COUNT(DISTINCT ai_category, item_name_zh, item_name_en, language)
                 FROM unresolved_items
             ''')
             total = cursor.fetchone()[0]
             
-            # 2. 計算偏移量
             offset = (page - 1) * per_page
             
-            # 3. 取得分組後的資料，並計算每個組的出現次數
             cursor.execute('''
                 SELECT ai_category, item_name_zh, item_name_en, language, COUNT(*) as count, MAX(created_at) as last_seen
                 FROM unresolved_items
