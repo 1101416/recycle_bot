@@ -75,7 +75,7 @@ def insert_default_data(conn):
         ('paper', '紙容器,鋁箔包,新鮮屋,利樂皇,紙餐具,紙杯,紙碗,紙餐盤,紙餐盒', '內容物倒空，稍微擦拭或沖洗，壓扁後回收。', '紙盒包或鋁箔包要先將吸管去除再壓扁。', 'zh-TW'),
         ('other', '紙尿褲,紙尿片,衛生紙,衛生棉,複寫紙,蠟紙,離型紙,貼紙底襯,轉印紙,感熱紙,電子發票,砂紙,塑膠光面紙,髒污的紙張,炮竹類紙屑', '這些皆為不可回收的複合材質或髒污紙張，請打包後交給垃圾車。', '感熱紙(如電子發票)含有化學物質，不可回收。', 'zh-TW'),
         # --- 金屬類 (Metal) ---
-        ('metal', '鐵容器,鐵罐,鐵窗,鐵板,鐵棍,鐵籠,鐵箱,鐵欄杆,鐵製鉛筆盒,鐵門,鐵架,鐵棒,鐵鉤,鐵桶,鐵條,鐵鐘,鐵器,鐵鍋,鐵櫃,鐵絲,圖釘,鐵釘,鐵碗,鐵塊,鐵鍊,鐵皮,鐵杯,鐵盆,鐵鎚頭,菜刀刀身,雨傘骨架,鐵製餅乾盒,鋼筋', '請先倒空內容物，用水略為沖洗後回收。', '雨傘布、坐墊等複合材質需拆除，只回收骨架。', 'zh-TW'),
+        ('metal', '鐵網垃圾桶,金屬垃圾桶,鐵容器,鐵罐,鐵窗,鐵板,鐵棍,鐵籠,鐵箱,鐵欄杆,鐵製鉛筆盒,鐵門,鐵架,鐵棒,鐵鉤,鐵桶,鐵條,鐵鐘,鐵器,鐵鍋,鐵櫃,鐵絲,圖釘,鐵釘,鐵碗,鐵塊,鐵鍊,鐵皮,鐵杯,鐵盆,鐵鎚頭,菜刀刀身,雨傘骨架,鐵製餅乾盒,鋼筋', '請先倒空內容物，用水略為沖洗後回收。', '雨傘布、坐墊等複合材質需拆除，只回收骨架。', 'zh-TW'),
         ('metal', '鋁容器,鋁罐,鋁鍋,鋁盆,鋁門窗外框,鋁合金鋼圈', '請先倒空內容物，用水略為沖洗，壓扁後回收。', '保持乾燥與潔淨。', 'zh-TW'),
         ('metal', '包覆銅線電線,不銹鋼製品,金屬釘書機,金屬製菜籃,金屬剪刀,金屬湯匙,叉子,鑰匙,門鎖,金屬製衣架,銅製品,不銹鋼瓦斯爐,鋼圈', '直接交付資源回收車即可。', '電線外層的塑膠皮不需特別剝除。', 'zh-TW'),
         ('hazard', '氣體鋼瓶,滅火器,瓦斯鋼瓶', '應交由原販賣業者逆向回收，或洽詢瓦斯行、檢驗場處理。', '這些是壓力容器，切勿自行處理或直接交給清潔隊，以免發生危險。', 'zh-TW'),
@@ -105,7 +105,7 @@ def insert_default_data(conn):
         ('hazard', '廢農藥容器', '請至少清洗三次，並將清洗液重複噴灑利用，清除內容物後打包回收。', '可送交農會設置的回收點或資源回收車。', 'zh-TW'),
         ('hazard', '油漆,油漆溶劑,水泥漆,凡立水', '內容物若未使用完，應將蓋子蓋緊，交由資源回收車或洽詢清潔隊。不可倒入水槽。', '容器若已清空，則可依其材質（金屬、塑膠）進行回收。', 'zh-TW'),
         # --- 大型廢棄物 (Bulky) ---
-        ('bulky', '廢機動車輛,汽車,機車', '廢機動車輛（汽車與機車）應洽詢合法的廢車回收商進行報廢與回收處理。完成合法報廢後，民眾可獲得少額回收獎勵金；若同時報廢老舊汽車或機車並購買電動車，還可能申請高額的汰舊換新補助。', '報廢前，民眾須先至監理站辦理車輛報廢登記。', 'zh-TW'),
+        ('bulky', '廢機動車輛,汽車,電動滑板車,滑板車(電動,機車', '廢機動車輛（汽車與機車）應洽詢合法的廢車回收商進行報廢與回收處理。完成合法報廢後，民眾可獲得少額回收獎勵金；若同時報廢老舊汽車或機車並購買電動車，還可能申請高額的汰舊換新補助。', '報廢前，民眾須先至監理站辦理車輛報廢登記。', 'zh-TW'),
         ('bulky', '堪用家具,彈簧床墊', '可與清潔隊各區隊約定收運時間到府回收。', '這是針對大型垃圾的專門服務。', 'zh-TW'),
         ('bulky', '自行車,腳踏車', '可與清潔隊約定收運時間，或交由自行車行回收。', '回收時可能需要交付切結書。', 'zh-TW'),
         ('bulky', '廢輪胎', '可由輪胎行、汽機車行、保修廠逆向回收或交由資源回收車回收。', '不包含特種車輛實心輪胎或飛機胎。', 'zh-TW'),
@@ -126,7 +126,7 @@ def insert_default_data(conn):
         ('paper', 'Paper containers, Tetra Paks, Fresh House cartons, paper tableware, paper cups, paper bowls, paper plates, paper boxes', 'Empty the contents, wipe or rinse briefly, then flatten for recycling.', 'For cartons or Tetra Paks, remove the straw before flattening.', 'en'),
         ('other', 'Diapers, used tissues, sanitary pads, carbon paper, wax paper, release paper (sticker backing), transfer paper, thermal paper (e-receipts), sandpaper, glossy plastic-coated paper, soiled paper, firecracker scraps', 'These are all non-recyclable composite materials or soiled paper. Please bag them and hand them to the garbage truck.', 'Thermal paper (like e-receipts) contains chemicals and is not recyclable.', 'en'),
         ('other', 'feces, poop, dog poop, cat poop, pet waste, excrement', 'Please pick it up using a bag, tie the bag securely, and dispose of it in a general waste bin.', 'Do not flush non-human feces down the toilet or discard in street drains to avoid environmental pollution or pipe blockage.', 'en'),
-        ('metal', 'Iron containers, cans, window frames, plates, rods, cages, boxes, railings, pencil cases, doors, shelves, hooks, buckets, bars, bells, cookware, cabinets, wires, thumbtacks, nails, bowls, blocks, chains, sheets, cups, basins, hammerheads, knife blades, umbrella frames, cookie tins, rebar', 'Please empty the contents and rinse lightly before recycling.', 'Composite materials like umbrella fabric and cushions must be removed; only recycle the frame.', 'en'),
+        ('metal', 'mesh trash can, metal trash can,Iron containers, cans, window frames, plates, rods, cages, boxes, railings, pencil cases, doors, shelves, hooks, buckets, bars, bells, cookware, cabinets, wires, thumbtacks, nails, bowls, blocks, chains, sheets, cups, basins, hammerheads, knife blades, umbrella frames, cookie tins, rebar', 'Please empty the contents and rinse lightly before recycling.', 'Composite materials like umbrella fabric and cushions must be removed; only recycle the frame.', 'en'),
         ('metal', 'Aluminum containers, cans, pots, basins, window frames, alloy wheels', 'Empty the contents, rinse lightly, and flatten for recycling.', 'Keep them dry and clean.', 'en'),
         ('metal', 'Copper-clad wires, stainless steel products, metal staplers, metal vegetable baskets, metal scissors, metal spoons, forks, keys, door locks, metal hangers, copper products, stainless steel gas stoves, steel rims', 'Hand them directly to the recycling truck.', 'The outer plastic sheath of wires does not need to be stripped.', 'en'),
         ('hazard', 'Gas cylinders, fire extinguishers, propane tanks', 'Should be returned to the original vendor or taken to a gas company/inspection site for handling.', 'These are pressurized containers. Do not handle them yourself or give them to the cleaning crew to avoid danger.', 'en'),
@@ -150,7 +150,7 @@ def insert_default_data(conn):
         ('hazard', 'Lighting sources, fluorescent tubes, circular fluorescent tubes, light bulbs, cold cathode lamps', 'Please pack them in a paper sleeve, do not break them, and hand them to a recycling truck or a lighting retailer for recycling.', 'Traditional light bulbs with a cap diameter under 2.6 cm are not recyclable.', 'en'),
         ('hazard', 'Mercury thermometers', 'Please pack it in its original case and hand it specifically to the personnel on the recycling truck.', 'Does not include laboratory thermometers.', 'en'),
         ('hazard', 'Used pesticide containers', 'Please rinse at least three times, reuse the rinsing liquid for spraying, empty the contents, and then bag for recycling.', 'Can be taken to collection points at local farmers\' associations or given to a recycling truck.', 'en'),
-        ('bulky', 'Scrap motor vehicles, cars, motorcycles', 'End-of-life vehicles (including cars and motorcycles) should be properly disposed of through certified vehicle recycling companies. After completing the official scrapping process, owners may receive a small recycling reward. In addition, those who scrap old vehicles and purchase electric ones may be eligible for higher replacement subsidies.', 'Before recycling, the vehicle owner must first complete the deregistration process at the Motor Vehicles Office.', 'en'),
+        ('bulky', 'electric scooter, e-scooter,Scrap motor vehicles, cars, motorcycles', 'End-of-life vehicles (including cars and motorcycles) should be properly disposed of through certified vehicle recycling companies. After completing the official scrapping process, owners may receive a small recycling reward. In addition, those who scrap old vehicles and purchase electric ones may be eligible for higher replacement subsidies.', 'Before recycling, the vehicle owner must first complete the deregistration process at the Motor Vehicles Office.', 'en'),
         ('bulky', 'Usable furniture, spring mattresses', 'You can schedule a door-to-door pickup with your local cleaning crew.', 'This is a dedicated service for large waste items.', 'en'),
         ('bulky', 'Bicycles', 'You can schedule a pickup with the cleaning crew or take it to a bicycle shop for recycling.', 'A signed affidavit may be required for recycling.', 'en'),
         ('bulky', 'Scrap tires', 'Can be returned to tire shops, vehicle repair shops for reverse recycling, or handed to a recycling truck.', 'Does not include solid tires for special vehicles or aircraft tires.', 'en'),
@@ -229,6 +229,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with separated expert and general rules！")
+
 
 
 
