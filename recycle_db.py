@@ -1,5 +1,5 @@
 # 檔案: recycle_db.py
-# (此版本 v5.0 已修正為「完美匹配」邏輯)
+# (此版本 v6.1 已修正為「專家規則優先」邏輯)
 
 import sqlite3
 import json
@@ -14,22 +14,15 @@ class RecycleDatabase:
     def __init__(self, db_path='database.db'):
         self.db_path = db_path
 
-    # --- vvv 修正 _format_rule_response vvv ---
-    def _format_rule_response(self, rule_tuple: Tuple, category_key: str) -> Optional[Dict]:
-        """
-        (輔助函式 v3) 將資料庫回傳的 tuple 格式化為 dict
-        (現在傳入的 rule_tuple 必定與 category_key 完美匹配)
-        """
-        if not rule_tuple:
-            return None
-
-        # rule_tuple[0] 是資料庫規則的 category (e.g., 'textile' 或 'paper')
-        # category_key 也是 'textile' 或 'paper'
+    # _format_rule_response 函式保持 v4.3/v5.0 的邏輯不變
+    # (它會優先使用 rule_tuple[0] (資料庫分類) 作為最終分類)
+    def _format_rule_response(self, rule_tuple: Tuple, ai_category_key: str) -> Optional[Dict]:
+        """(輔助函式 v3) 將資料庫回傳的 tuple 格式化為 dict"""
+        if not rule_tuple: return None
         db_category_key = rule_tuple[0]
-
-        # 從 Config 獲取標準的中文名稱
         category_name_zh = Config.WASTE_CATEGORIES.get(db_category_key, '其他')
-
+        if ai_category_key != db_category_key:
+             logger.warning(f"Category correction: AI suggested '{ai_category_key}', but DB rule is '{db_category_key}'. Using DB category.")
         return {
             'category': db_category_key,
             'category_name': rule_tuple[1],
@@ -37,60 +30,86 @@ class RecycleDatabase:
             'disposal_method': rule_tuple[2],
             'tips': rule_tuple[3]
         }
-    # --- ^^^ 修正 _format_rule_response ^^^ ---
 
-    # --- vvv 請用這個「完美匹配 v5.0」的版本取代舊的 get_specific_waste_info vvv ---
-    def get_specific_waste_info(self, category: str, item_name: str, language: str = 'zh-TW') -> Optional[Dict]:
+    def log_unresolved_item(self, ai_category: str, item_zh: str, item_en: str, language: str):
+        """將 AI 分類後但在專家規則中找不到的項目記錄到資料庫。"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO unresolved_items (ai_category, item_name_zh, item_name_en, language) VALUES (?, ?, ?, ?)",
+                    (ai_category, item_zh, item_en, language)
+                )
+                conn.commit()
+                logger.info(f"Logged unresolved item: {ai_category} / {item_zh} / {item_en}")
+        except Exception as e:
+            logger.error(f"Failed to log unresolved item to DB: {e}")
+
+    # --- vvv 請用這個「專家優先 v6.1」的版本取代舊的 get_specific_waste_info vvv ---
+    def get_specific_waste_info(self, ai_classification_result: dict, language: str = 'zh-TW') -> Optional[Dict]:
         """
-        (智慧查詢引擎 v5.0 - 完美匹配邏輯)
-        階段 1: 搜尋 expert 表，必須 category 和 keyword 都匹配。
-        階段 2: 若失敗，搜尋 general 表，必須 category 匹配。
+        (智慧查詢引擎 v6.1 - 專家規則優先邏輯)
+        階段 1: (忽略 AI category) 搜尋 expert 表，尋找第一個匹配 keyword 的規則。
+        階段 2: 若失敗，記錄到 unresolved_items，然後 (使用 AI category) 搜尋 general 表。
+        階段 3: 若皆失敗，回傳 None。
         """
+        
+        # 1. 從 AI 結果中提取所需資訊
+        ai_category = ai_classification_result.get('category', 'other')
+        item_zh = ai_classification_result.get('item_name_zh', '')
+        item_en = ai_classification_result.get('item_name_en', '')
+        
+        item_to_check = item_zh if language == 'zh-TW' else item_en.lower()
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
-                # --- 階段 1: 搜尋「專家規則」(完美匹配) ---
+                # --- 階段 1: 搜尋「專家規則」(關鍵字優先) ---
+                # (不再於 SQL 中篩選 category)
                 cursor.execute(
-                    "SELECT category, name_keywords, disposal_method, tips FROM waste_info_expert WHERE language = ? AND category = ?",
-                    (language, category) # <-- 直接在 SQL 中過濾掉所有分類不符的規則
+                    "SELECT category, name_keywords, disposal_method, tips FROM waste_info_expert WHERE language = ?",
+                    (language,) 
                 )
                 expert_rules = cursor.fetchall()
 
-                item_to_check = item_name if language == 'zh-TW' else item_name.lower()
-
                 for rule in expert_rules:
-                    # (現在 rule[0] 必定等於 category)
                     db_keywords_str = rule[1]
                     db_keywords = [kw.strip().lower() if language == 'en' else kw.strip() for kw in db_keywords_str.split(',')]
 
                     for keyword in db_keywords:
                         if item_to_check in keyword:
-                            logger.info(f"Perfect expert rule found for '{item_name}' (category match: '{category}'), using rule for keywords '{rule[1]}'.")
-                            return self._format_rule_response(rule, category)
+                            # 找到了！ (例如 '鍵盤' in '...鍵盤...')
+                            logger.info(f"Expert rule keyword match found for '{item_to_check}', using rule for keywords '{rule[1]}'.")
+                            # (呼叫 _format_rule_response 會自動處理 AI 分類錯誤的警告)
+                            return self._format_rule_response(rule, ai_category)
 
-                # --- 階段 2: 搜尋「通用規則」 (完美匹配) ---
-                # (如果上面沒有找到關鍵字匹配的專家規則)
-
-                logger.info(f"No expert rule found for '{item_name}', falling back to general category '{category}'.")
+                # --- 階段 2: 搜尋「通用規則」 (後備方案) ---
+                
+                logger.info(f"No expert rule found for '{item_to_check}', falling back to general category '{ai_category}'.")
+                
+                # 記錄這個「專家規則缺口」
+                if ai_category not in ['chat', 'other']:
+                    self.log_unresolved_item(ai_category, item_zh, item_en, language)
 
                 cursor.execute(
                     "SELECT category, name, disposal_method, tips FROM waste_info_general WHERE category = ? AND language = ? LIMIT 1",
-                    (category, language)
+                    (ai_category, language)
                 )
                 general_rule = cursor.fetchone()
 
                 if general_rule:
-                    return self._format_rule_response(general_rule, category)
+                    return self._format_rule_response(general_rule, ai_category)
 
-                # 如果連通用規則都找不到 (例如 'chat' 分類)
-                logger.error(f"CRITICAL: No general rule found for category '{category}' in language '{language}'.")
+                # --- 階段 3: 最終失敗 ---
+                logger.error(f"CRITICAL: No general rule found for category '{ai_category}' in language '{language}'. (Final fallback)")
                 return None
 
         except Exception as e:
             logger.error(f"Error getting specific waste info: {e}")
             return None
-    # --- ^^^ 請用这个「完美匹配 v5.0」的版本取代舊的 get_specific_waste_info ^^^ ---
+    # --- ^^^ 請用这个「專家優先 v6.1」的版本取代舊的 get_specific_waste_info ^^^ ---
+
 
     # --- 以下為使用者資料相關函式，維持不變 ---
     # ... (get_or_create_user, get_user_language, etc. 保持不變) ...
