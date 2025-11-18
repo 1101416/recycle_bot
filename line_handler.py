@@ -258,7 +258,7 @@ class LineMessageHandler:
 
     def handle_text_message(self, event):
         """
-        處理文字訊息 (v9 - 移除了 /clothes 指令)
+        處理文字訊息 (v9 - 修正 get_specific_waste_info 呼叫)
         """
         user_id = event.source.user_id
         raw_text = event.message.text.strip()
@@ -273,19 +273,12 @@ class LineMessageHandler:
             if command_text in ['/help', '幫助', 'help']:
                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['help']))
                 return
-            
             if command_text in ['/language', '語言', 'language']:
                 self._send_language_menu(event.reply_token)
                 return
-
             if command_text in ['/news', 'news', '最新消息', '公告']:
-                self.line_bot_api.reply_message(
-                    event.reply_token, 
-                    TextMessage(text=texts['news_reply'])
-                )
+                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['news_reply']))
                 return
-            
-            # ( /clothes 指令已移除)
 
             # --- 2. 如果不是指令，則執行「AI 文字分類」 ---
             classification_result = self.image_classifier.classify_text(raw_text)
@@ -308,13 +301,17 @@ class LineMessageHandler:
                     return
 
                 # --- 5. 執行正常的分類流程 ---
-                item_name_for_db = item_zh if user_lang == 'zh-TW' else item_en
                 try:
                     self.recycle_db.record_classification(user_id, category, classification_result.get('confidence'), image_path=None)
                 except Exception:
                     logger.exception("Failed to record text classification to DB")
 
-                waste_info = self.recycle_db.get_specific_waste_info(category, item_name_for_db, user_lang)
+                # --- vvv 關鍵修改：傳入完整的 classification_result vvv ---
+                waste_info = self.recycle_db.get_specific_waste_info(
+                    classification_result, # <--- 傳入完整的 AI 結果
+                    user_lang
+                )
+                # --- ^^^ 關鍵修改 ^^^ ---
 
                 if waste_info:
                     flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
@@ -403,45 +400,31 @@ class LineMessageHandler:
 
     def handle_image_message(self, event):
         """
-        處理圖片訊息 (最終版邏輯)：
-        1. 下載圖片。
-        2. 將圖片傳送給 AI (Gemini) 進行分類。
-        3. 檢查 AI 是否回傳非實體物品，若是則回覆提示。
-        4. 使用 AI 回傳的 category，去資料庫搜尋詳細規則並回傳。
+        處理圖片訊息 (v6.0 - 修正 get_specific_waste_info 呼叫)
         """
         user_id = event.source.user_id
         self.recycle_db.get_or_create_user(user_id)
         user_lang = self.recycle_db.get_user_language(user_id) or 'zh-TW'
         texts = self._get_texts(user_lang)
-        temp_file_path = None # 初始化
+        temp_file_path = None 
 
         try:
             # --- 1. 下載圖片 ---
             message_content = self.line_bot_api.get_message_content(event.message.id)
             data_bytes = None
-            try:
-                # 標準 line-bot-sdk v1/v2
-                data_bytes = message_content.content
+            try: data_bytes = message_content.content
             except AttributeError:
-                 # 嘗試 line-bot-sdk v3 的讀取方式
-                try:
+                 try:
                     if hasattr(message_content, "iter_content"):
                         chunks = [ch for ch in message_content.iter_content()]
                         data_bytes = b"".join(chunks)
                     elif hasattr(message_content, "read"):
                          data_bytes = message_content.read()
-                except Exception as read_err:
-                    logger.error(f"Failed to read image content using iter_content/read: {read_err}")
-            except Exception as get_err:
-                 logger.error(f"Failed to get image content attribute: {get_err}")
-
-
-            if not data_bytes:
-                raise RuntimeError("Could not read image content from Line message")
-
+                 except Exception as read_err: logger.error(f"Failed to read image content using iter_content/read: {read_err}")
+            except Exception as get_err: logger.error(f"Failed to get image content attribute: {get_err}")
+            if not data_bytes: raise RuntimeError("Could not read image content from Line message")
             with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                temp_file.write(data_bytes)
-                temp_file_path = temp_file.name
+                temp_file.write(data_bytes); temp_file_path = temp_file.name
 
             # --- 2. 將圖片傳送給 AI ---
             classification_result = self.image_classifier.classify_image(temp_file_path)
@@ -451,56 +434,46 @@ class LineMessageHandler:
                 item_zh = classification_result.get('item_name_zh', '')
                 item_en = classification_result.get('item_name_en', '').lower()
                 if item_zh in ['螢幕截圖', '遊戲畫面', '繪圖'] or item_en in ['screenshot', 'game screen', 'drawing']:
-                    self.line_bot_api.reply_message(
-                        event.reply_token,
-                        TextMessage(text=texts['not_garbage_reply'])
-                    )
+                    self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['not_garbage_reply']))
                     logger.info(f"Replied with not_garbage_reply for non-physical item: {item_zh}/{item_en}")
-                    # 不需要 return，因為 finally 會處理檔案刪除
                 else:
                     # --- 4. 執行正常的分類流程 ---
-                    item_name_for_db = item_zh if user_lang == 'zh-TW' else item_en
                     try:
                         self.recycle_db.record_classification(
                             user_id,
                             classification_result.get('category'),
                             classification_result.get('confidence'),
-                            image_path=None # 暫不儲存圖片路徑
+                            image_path=None
                         )
                     except Exception:
                         logger.exception("Failed to record image classification to DB")
-
+                    
+                    # --- vvv 關鍵修改：傳入完整的 classification_result vvv ---
                     waste_info = self.recycle_db.get_specific_waste_info(
-                        classification_result['category'],
-                        item_name_for_db,
+                        classification_result, # <--- 傳入完整的 AI 結果
                         user_lang
                     )
+                    # --- ^^^ 關鍵修改 ^^^ ---
+                    
                     if waste_info:
                         self._send_classification_result(event.reply_token, classification_result, waste_info, texts, user_lang)
                     else:
                         self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
             else:
-                 # AI 分類失敗
-                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
-
+                 self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts['error_unrecognized']))
         except Exception as e:
             logger.exception(f"Error processing image message: {e}")
             try:
-                self.line_bot_api.reply_message(
-                    event.reply_token,
-                    TextMessage(text=texts.get('error_unrecognized', 'Sorry, an error occurred processing the image.'))
-                )
+                self.line_bot_api.reply_message(event.reply_token, TextMessage(text=texts.get('error_unrecognized', 'Sorry, an error occurred processing the image.')))
             except Exception:
                  logger.exception("Failed to send error reply for image message")
         finally:
-            # 確保暫存檔案被刪除
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
                     os.unlink(temp_file_path)
                     logger.info(f"Deleted temp image file: {temp_file_path}")
                 except Exception as unlink_err:
                     logger.error(f"Error deleting temp image file {temp_file_path}: {unlink_err}")
-    # --- ^^^ handle_image_message 結束 ^^^ ---
     
     def handle_location_message(self, event):
         user_id = event.source.user_id
@@ -794,6 +767,7 @@ class LineMessageHandler:
         # 不顯示 confidence 給使用者
         flex_message = self._create_result_flex_message(classification_result, waste_info, texts, user_lang)
         self.line_bot_api.reply_message(reply_token, flex_message)
+
 
 
 
