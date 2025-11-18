@@ -12,10 +12,15 @@ services:
       - key: LINE_CHANNEL_SECRET
         sync: false
       - key: DATABASE_URL
-        value: sqlite:///database.db
+        value: sqlite:////data/database.db
       - key: PUSH_MESSAGE_ENABLED
         value: "true"
       - key: FLASK_ENV
         value: "production"
+    disks:
+      - name: data # (假設您建立的 Disk 名稱為 data)
+        mountPath: /data
+        sizeGB: 1
+
 
 
