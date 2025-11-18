@@ -29,48 +29,37 @@ category: [lowercase_english_category], item_zh: [traditional_chinese_name], ite
 **3. Core Decision Rules (Must Follow - Order Matters)**
 
 * **Rule -1: Chat Detection (HIGHEST PRIORITY - Text Only)**
-    * If the input is TEXT and clearly a greeting (hello, hi), thanks (thank you), farewell (bye), simple affirmation/negation (ok, no), or other non-item-related chat:
-        * Set `category: chat`.
-        * Set `item_zh: 聊天訊息`.
-        * Set `item_en: chat message`.
-        * **STOP**. Do not proceed to other rules.
-
+    * If input is TEXT and clearly chat (hello, thanks, bye) → `category: chat`, `item_zh: 聊天訊息`, `item_en: chat message`. **STOP**.
 * **Rule 0: Non-Physical Items (Images Only)**
-    * If the input is an IMAGE and clearly a screenshot, game screen, drawing, etc.:
-        * Set `category: other`, `item_zh: 螢幕截圖`, `item_en: screenshot`. **STOP**.
-
+    * If input is an IMAGE (screenshot, game screen, drawing) → `category: other`, `item_zh: 螢幕截圖`, `item_en: screenshot`. **STOP**.
 * **Rule 1: Special Physical Items**
     * Dead Animals → 'animal'.
     * Currency → 'money'.
     * Hazardous Items (Batteries, bulbs, thermometers, medicine, gas canisters) → 'hazard'.
-
 * **Rule 2: Electronics (E-Waste)**
-    * ALL electronics, appliances, peripherals (TVs, phones, **keyboards**, **mice**, chargers), even broken → 'ewaste'.
-
+    * ALL electronics, appliances, peripherals (TVs, phones, keyboards, mice, chargers, electric scooters), even broken → 'ewaste'.
 * **Rule 3: Paper Rules**
     * Recyclable ('paper'): Clean flyers, magazines, boxes, beverage cartons.
-    * Non-Recyclable ('other'): **Used toilet paper**, tissues, diapers, receipts, soiled paper. **Toilet paper MUST be 'other'.**
+    * Non-Recyclable ('other'): **Used toilet paper (衛生紙)**, tissues, diapers, receipts, soiled paper. **Toilet paper MUST be 'other'.**
     * Paper vs. Content: Classify the paper object, NOT the content.
-
 * **Rule 4: Material-First (Containers & Plastics Focus)**
     * Focus on the main container/body material (e.g., Spray bottle body → 'plastic').
     * Plastic ID: #1,#2,#5→'plastic'(clean); #4,#6→'plastic'(clean&simple); #3,#7→'other'.
-    * Metal ID: Cans, clean tools → 'metal'.
+    * Metal ID: Cans, clean tools, metal mesh trash cans → 'metal'.
     * Glass ID: Bottles/jars → 'glass'. (Mirrors → 'other').
-
 * **Rule 5: Cleanliness & Composite Rules**
     * Heavily soiled/oily paper or plastic → 'other'.
     * Composite/multilayer packaging (snack bags) → 'other'.
-
 * **Rule 6: Other Specific Categories**
     * textile: Clean, wearable clothing → 'textile'. (Pillows, shoes → 'other').
     * bulky: Large furniture, vehicles, tires → 'bulky'.
     * food: Food scraps → 'food'.
-    * Common Non-Recyclable Plastics ('other'): Dirty bags, opaque bags, bubble wrap, refill packs, cling film, floss picks, flip-flops, yoga mats, toothbrushes, complex phone cases.
+    * Common Non-Recyclable Plastics ('other'): Dirty bags, opaque bags, bubble wrap, refill packs, cling film, floss picks, flip-flops, yoga mats, toothbrushes.
 
 ---
 **7. Naming & Uncertainty Rules**
-* **Naming**: Concise names (1-4 words). Name paper objects. Use labels if helpful. Chat: '聊天訊息'/'chat message'. Non-physical: '螢幕截圖'/'screenshot'.
+* **Naming**: Give concise names (1-4 words).
+* **Generalization Rule (NEW!)**: If the item is a specific type (e.g., '可頌麵包', 'Coke Can'), return the **general class name** (e.g., '麵包', '鋁罐').
 * **Uncertainty**: If truly uncertain, choose 'other', item_zh: '疑似: <描述>', item_en: 'suspected: <description>'.
 
 ---
@@ -152,6 +141,7 @@ class ImageClassifier:
         except Exception as e:
             logger.error(f"Error during Gemini API call for text: {e}")
             return None
+
 
 
 
