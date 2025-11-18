@@ -1,5 +1,5 @@
 # 檔案: garbage_truck_api.py
-# (此版本 v4.1 已加入「今日收運狀態」邏輯)
+# (此版本 v4.2 已修正「今日狀態」的時區問題)
 
 import os
 import json
@@ -7,6 +7,14 @@ import logging
 import math
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+# --- vvv 新增 import vvv ---
+try:
+    # Python 3.9+
+    from zoneinfo import ZoneInfo
+except ImportError:
+    # Python 3.8 or older (fallback)
+    from backports.zoneinfo import ZoneInfo
+# --- ^^^ 新增 import ^^^ ---
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -15,7 +23,7 @@ from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
-# ... (DEFAULT_NTPC_API_JSON, CACHE_PATH, TIMEOUT_SEC, ... CACHE_MAX_AGE_SECONDS 保持不變) ...
+# ... (DEFAULT_NTPC_API_JSON, CACHE_PATH, ... CACHE_MAX_AGE_SECONDS 保持不變) ...
 DEFAULT_NTPC_API_JSON = os.getenv("NTPC_GARBAGE_API_URL","https://data.ntpc.gov.tw/api/datasets/edc3ad26-8ae7-4916-a00b-bc6048d19bf8/json")
 CACHE_PATH = os.getenv("NTPC_CACHE_PATH", "/data/ntpc_schedule_cache.json")
 TIMEOUT_SEC = int(os.getenv("NTPC_TIMEOUT_SEC", "15"))
@@ -23,6 +31,7 @@ RETRY_TOTAL = int(os.getenv("NTPC_RETRY_TOTAL", "3"))
 RETRY_BACKOFF = float(os.getenv("NTPC_RETRY_BACKOFF", "0.8"))
 USE_SYNTHETIC_FALLBACK = os.getenv("NTPC_USE_SYNTH_FALLBACK", "true").lower() not in ("0","false","no")
 CACHE_MAX_AGE_SECONDS = 86400 
+TAIWAN_TZ = ZoneInfo("Asia/Taipei") # <--- 新增台灣時區變數
 
 # ... ( _make_session_with_retries, haversine_distance_m, _save_cache, _load_cache 保持不變 ) ...
 def _make_session_with_retries(total=RETRY_TOTAL, backoff=RETRY_BACKOFF) -> requests.Session:
@@ -118,13 +127,12 @@ def _try_extract_latlon(it: Dict) -> Optional[tuple]:
     return None
 
 class NewTaipeiTruckAPI:
+    # ... (__init__, _fetch_api, force_update_cache, _get_all_data 保持不變) ...
     def __init__(self, api_url: str = None):
         self.api_url = api_url or DEFAULT_NTPC_API_JSON
         self.session = _make_session_with_retries()
         self.all_data_cache = None 
-
     def _fetch_api(self) -> Optional[List[Dict]]:
-        """ (v2.0) 抓取所有分頁的資料並合併。 """
         headers = {"User-Agent": "RecycleBot/1.0", "Accept": "application/json, text/xml;q=0.8"}
         all_items: List[Dict] = []
         page = 0
@@ -180,9 +188,7 @@ class NewTaipeiTruckAPI:
             return None
         logger.info("Fetched a total of %d items from NTPC API.", len(all_items))
         return all_items
-
     def force_update_cache(self) -> bool:
-        """ (v4.0) 由排程器呼叫，強制下載 API 資料並寫入快取。 """
         logger.info("Scheduler triggered: Forcing cache update...")
         items = self._fetch_api()
         if items:
@@ -193,9 +199,7 @@ class NewTaipeiTruckAPI:
         else:
             logger.error("Cache update failed: _fetch_api() returned None.")
             return False
-
     def _get_all_data(self) -> Optional[List[Dict]]:
-        """ (v4.0) 檢查快取，如果過期或不存在，才呼叫 _fetch_api() """
         if self.all_data_cache:
              logger.info("Loading NTPC data from memory cache.")
              return self.all_data_cache
@@ -222,14 +226,14 @@ class NewTaipeiTruckAPI:
             self.all_data_cache = items
         return items
 
-    # --- vvv 新增輔助函式 vvv ---
+    # --- vvv 請用這個「已修正時區」的版本取代舊的 _parse_truck_item vvv ---
     def _parse_truck_item(self, it: Dict, distance: Optional[int] = None) -> Dict:
         """
-        (v4.1) 從原始 item 中提取所需欄位，並解析「今日收運狀態」。
+        (v4.2) 從原始 item 中提取所需欄位，並解析「今日收運狀態」(已修正時區)。
         """
         
-        # 1. 取得今日星期幾 (0=Mon, 6=Sun)
-        today_weekday = datetime.now().weekday()
+        # 1. 取得「台灣時間」的今日星期幾 (0=Mon, 6=Sun)
+        today_weekday = datetime.now(tz=TAIWAN_TZ).weekday() # <--- 修正處
         day_map = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
         today_key = day_map[today_weekday] # e.g., 'monday'
 
@@ -261,57 +265,43 @@ class NewTaipeiTruckAPI:
             "location": str(caption),
             "time": str(time_field),
             "city": str(city_field),
-            "today_status": today_status # <--- 新增的欄位
+            "today_status": today_status
         }
         if distance is not None:
             res["_distance_m"] = int(distance)
             
         return res
-    # --- ^^^ 新增輔Zhu函式 ^^^ ---
+    # --- ^^^ 修正結束 ^^^ ---
 
-
+    # ... (get_schedules_by_location, get_schedules_by_address 保持不變) ...
     def get_schedules_by_location(self, lat: float, lng: float, radius_m: int = 2000, max_results: int = 8) -> List[Dict]:
-        """ (v4.1) 以經緯度做篩選 """
-        
         items = self._get_all_data()
-        
         if not items:
             logger.warning("No NTPC data available (fetch failed and no cache).")
             if USE_SYNTHETIC_FALLBACK:
                 return [{"linename": "未知路線", "location": "您附近（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True, "today_status": {}}]
             return []
-        
         proximity_results = []
         for it in items:
-            if not isinstance(it, dict):
-                continue
+            if not isinstance(it, dict): continue
             latlon = _try_extract_latlon(it)
             if latlon:
                 try:
                     d = haversine_distance_m(lat, lng, latlon[0], latlon[1])
                     if d <= radius_m:
-                        # --- vvv 修改處：呼叫輔助函式 vvv ---
                         res = self._parse_truck_item(it, distance=d)
                         proximity_results.append(res)
-                        # --- ^^^ 修改處 ^^^ ---
                 except Exception:
                     logger.exception("Distance calc failed for item: %s", it)
                     continue
-
         if proximity_results:
             proximity_results.sort(key=lambda x: x["_distance_m"])
             logger.info("Found %d proximity results", len(proximity_results))
             return proximity_results[:max_results]
-
         logger.info("No proximity results found (no coords or outside radius). Returning empty to let caller fallback to address match.")
         return []
-
     def get_schedules_by_address(self, address: str, radius_m: int = 2000) -> List[Dict]:
-        """ (v4.1) 保留 address-based 查詢 """
-        
-        if not address:
-            return []
-        # ... (地址解析 保持不變) ...
+        if not address: return []
         try:
             tmp = address.replace("台灣","").replace("臺灣","")
             parts = tmp.split('市')
@@ -329,35 +319,26 @@ class NewTaipeiTruckAPI:
             logger.exception("Address parse error")
             district = ""
             road = ""
-
         items = self._get_all_data()
-
         if not items:
             logger.warning("No NTPC data available (fetch failed and no cache).")
             if USE_SYNTHETIC_FALLBACK:
                 return [{"linename": "未知路線", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True, "today_status": {}}]
             return []
-        
         results = []
         for it in items:
-            if not isinstance(it, dict):
-                continue
+            if not isinstance(it, dict): continue
             try:
                 area = _get_field_case_insensitive(it, ['city', '行政區'])
                 caption = _get_field_case_insensitive(it, ['name', '清運點名稱']) or _get_field_case_insensitive(it, ['linename', '路線名稱'])
-                
                 area_ok = True if not district else (area and district in str(area))
                 road_ok = True if not road else (caption and road in str(caption))
-                
                 if area_ok and road_ok:
-                    # --- vvv 修改處：呼叫輔助函式 vvv ---
                     res = self._parse_truck_item(it)
                     results.append(res)
-                    # --- ^^^ 修改處 ^^^ ---
             except Exception:
                 logger.exception("Failed parse item: %s", it)
                 continue
-
         if not results and USE_SYNTHETIC_FALLBACK:
             return [{"linename": "未知路線", "location": f"{(district+road).strip() or '您附近'}（參考）", "time": "※ 非即時資料，僅供參考", "city": "新北市", "_synthetic": True, "today_status": {}}]
         return results
