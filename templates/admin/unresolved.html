@@ -53,7 +53,10 @@
                             <a class="nav-link active" href="{{ url_for('unresolved_items') }}">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                 規則缺口
-                                </a>
+                                {% if stats and stats.unresolved_count > 0 %}
+                                    <span class="badge bg-danger">{{ stats.unresolved_count }}</span>
+                                {% endif %}
+                            </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('news') }}">
