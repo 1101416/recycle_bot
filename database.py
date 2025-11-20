@@ -83,7 +83,7 @@ def insert_default_data(conn):
         # --- 塑膠類 (Plastic) ---
         ('plastic', '塑膠容器,PET瓶,PVC瓶,PP杯,PE瓶,PS瓶,養樂多瓶,塑膠盒,塑膠盆,塑膠桌椅,光碟片,塑膠製資料夾,保鮮盒,塑膠臉盆,塑膠花盆,壓克力,包裝封膜,塑膠管,膠水瓶,塑膠菜籃,塑膠製衣架,塑膠水桶,安全帽,錄影帶,錄音帶,塑膠玩具,塑膠類免洗餐具,保麗龍餐具,生鮮托盤', '請先倒空內容物，用水略為沖洗後回收。', '乾淨的保麗龍餐具或生鮮托盤是可以回收的。', 'zh-TW'),
         ('plastic', '乾淨的塑膠袋', '請將袋內垃圾倒乾淨，打結後集中成一包交付回收。', '只回收乾淨的、單純的塑膠袋。', 'zh-TW'),
-        ('plastic', '乾淨的包裝用保麗龍,漁貨箱,冰品盒,蛋糕盒,電子電器包裝材', '請先去除內容物、膠帶、木材、鐵釘等，並沖洗乾淨。', '建築工程用的施工保麗龍不可回收。', 'zh-TW'),
+        ('plastic', '塑膠椅,塑膠椅凳,乾淨的包裝用保麗龍,漁貨箱,冰品盒,蛋糕盒,電子電器包裝材', '請先去除內容物、膠帶、木材、鐵釘等，並沖洗乾淨。', '建築工程用的施工保麗龍不可回收。', 'zh-TW'),
         ('other', '塑膠膜,化學纖維物品,塑膠布,樹脂,安全座椅,護貝膠膜,腳踏墊,保鮮膜,墊子,泡棉,旅行袋,膠帶,雨衣,原子筆,吸管,飼料袋,唱片,刷子,底片,板擦,塑膠鉛筆盒,筷子,牙籤,牙線,橡膠製品', '這些皆為不可回收的複合材質或體積過小物品，請以一般垃圾處理。', '廢輪胎除外，需另外回收。', 'zh-TW'),
         ('other', '髒污的塑膠袋,內層有錫箔或鋁箔的塑膠袋,茶包,餅乾袋', '此類複合材質或髒污的塑膠袋無法回收，請以一般垃圾處理。', '判斷標準是袋子內層是否為銀色或有其他材質。', 'zh-TW'),
         # --- 玻璃類 (Glass) ---
@@ -133,7 +133,7 @@ def insert_default_data(conn):
         ('other', 'Fuses, telephone lines, network cables', 'These items cannot be effectively recycled at present. Please dispose of them as general waste.', 'Although they contain metal, they are not recycled due to excessive impurities and high processing costs.', 'en'),
         ('plastic', 'Plastic containers, PET bottles, PVC bottles, PP cups, PE bottles, PS bottles, Yakult bottles, plastic boxes, basins, tables, chairs, CDs/DVDs, plastic folders, food storage containers, face wash basins, flower pots, acrylics, packaging film, plastic pipes, glue bottles, plastic baskets, plastic hangers, water buckets, helmets, videotapes, cassette tapes, plastic toys, disposable plastic tableware, styrofoam tableware, fresh food trays', 'Please empty the contents and rinse lightly before recycling.', 'Clean styrofoam tableware or fresh food trays are recyclable.', 'en'),
         ('plastic', 'Clean plastic bags', 'Empty any trash from the bag, tie it, and collect them in one bag for recycling.', 'Only clean, single-material plastic bags are recycled.', 'en'),
-        ('plastic', 'Clean packaging styrofoam, fish boxes, ice cream boxes, cake boxes, electronic appliance packaging materials', 'Please remove contents, tape, wood, nails, etc., and rinse clean first.', 'Styrofoam used in construction is not recyclable.', 'en'),
+        ('plastic', 'plastic stool,Clean packaging styrofoam, fish boxes, ice cream boxes, cake boxes, electronic appliance packaging materials', 'Please remove contents, tape, wood, nails, etc., and rinse clean first.', 'Styrofoam used in construction is not recyclable.', 'en'),
         ('other', 'Plastic film, chemical fiber items, plastic sheets, resin, car seats, lamination film, floor mats, cling wrap, cushions, foam, travel bags, tape, raincoats, ballpoint pens, straws, feed bags, records, brushes, camera film, whiteboard erasers, plastic pencil cases, chopsticks, toothpicks, dental floss, rubber products', 'These are all non-recyclable composite or small-sized items. Please dispose of them as general waste.', 'Excluding scrap tires, which should be recycled separately.', 'en'),
         ('other', 'Dirty plastic bags, plastic bags with an inner foil layer, tea bags, snack bags', 'These types of composite or dirty plastic bags are not recyclable. Please dispose of them as general waste.', 'The criteria is whether the inner layer of the bag is silver or made of another material.', 'en'),
         ('glass', 'Perfume, Perfume Bottle', 'The "contents" and "empty bottle" must be handled separately. 1. Contents Disposal: Absorb the liquid with a cloth or paper towel. After it evaporates, throw the absorbent material into "General Waste". 2. Bottle Recycling： Recycle the clean, empty bottle based on its material (usually glass).', 'IMPORTANT： Do not pour liquid perfume down the sink or toilet. For aerosol cans, ensure they are completely empty in a ventilated area before recycling as "Metal".', 'en'),
@@ -229,6 +229,7 @@ def insert_default_data(conn):
 if __name__ == "__main__":
     init_database()
     print("Database initialized successfully with separated expert and general rules！")
+
 
 
 
