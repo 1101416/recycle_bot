@@ -274,15 +274,5 @@ grep "ERROR" logs/app.log
 - 發送 Email
 - LINE 官方帳號
 
-## 🙏 致謝
-
-感謝以下開源專案和服務：
-- LINE Bot SDK
-- TensorFlow
-- Flask
-- BeautifulSoup
-- APScheduler
-
----
-
 **讓我們一起為環保盡一份心力！🌱♻️**
+
